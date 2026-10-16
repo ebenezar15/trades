@@ -83,7 +83,7 @@ class WsManager {
 
   /** Reconnect immediately if closed (e.g. right after logging in). */
   reconnectNow() {
-    if (this.state !== 'closed') return;
+    if (MOCK || !this.started || this.state !== 'closed') return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.attempt = 0;

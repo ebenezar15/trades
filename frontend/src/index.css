@@ -111,7 +111,7 @@ body {
 }
 
 /* Touch devices (iPad / phone): ≥44px tap targets, 16px inputs (no iOS focus zoom). */
-@media (pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse) {
   .btn {
     min-height: 44px;
     @apply px-3.5;
