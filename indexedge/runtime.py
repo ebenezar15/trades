@@ -124,6 +124,8 @@ class Runtime:
 
         self._build_analytics()
         self._build_execution()
+        if self.exec_broker is self.paper:
+            self._void_stale_paper_trades()
         self.market.add_tick_sink(lambda t: self.trades.on_tick(t))
         self._wire_bus()
         self._load_reports_cache()
@@ -250,6 +252,18 @@ class Runtime:
         self.bus.subscribe(topics.CANDLE, self.signals.on_candle)
         self.bus.subscribe(topics.ALERT, self._on_alert)
         self.bus.subscribe(topics.NEWS, self._on_news)
+
+    def _void_stale_paper_trades(self) -> None:
+        """Paper positions live in memory only; trades left open by a previous run can't be managed, so they
+        are closed as void (no P&L) instead of dangling as 'open' forever."""
+        try:
+            df = self.journal.trades(status="open", mode="paper")
+        except Exception:
+            return
+        for r in (df.to_dict(orient="records") if not df.empty else []):
+            self.journal.close_trade(r["id"], self.clock.now(), float(r["entry_price"]), "void_restart", 0.0, 0.0,
+                                     r_multiple=0.0, rule_violations=["paper trade voided: app restarted"])
+            log.warning("paper trade %s voided after restart", r["id"])
 
     # ================================================================== settings helpers
     def _effective_settings(self) -> Settings:

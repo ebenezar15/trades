@@ -60,6 +60,13 @@ orders, squares off everything and locks trading for the rest of the day.
 - **Learn** — explainer for every strategy and a "Would you take this trade?" quiz scored against what happened.
 - **Pre-market / EOD report / Health / Settings**.
 
+## Restarting during the day
+
+Paper positions are simulated in memory. If you close IndexEdge while a **paper** trade is open, it is closed as
+*void* (zero P&L, marked "paper trade voided: app restarted") on the next start. **Live** trades are different: the
+positions and stop orders live at Angel One, and on restart IndexEdge reconciles with the broker and re-adopts the
+existing stop orders.
+
 ## Settings that matter
 
 - **Risk limits** can only be changed outside market hours (prevents emotional changes mid-session).

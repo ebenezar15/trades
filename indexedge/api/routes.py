@@ -116,20 +116,53 @@ def context(request: Request):
 
 
 # ====================================================================== signals
+def _journal_signal_json(rt: Any, r: dict) -> dict:
+    """Signal row from the journal (e.g. after a restart) in the SignalJSON shape."""
+    strat = rt.strategies.get(r.get("strategy_id"))
+    inst = r.get("instrument")
+    ci = r.get("probability_ci")
+    return {
+        "id": r.get("id"), "strategy_id": r.get("strategy_id"),
+        "strategy_name": getattr(strat, "name", r.get("strategy_id")), "underlying": r.get("underlying"),
+        "side": r.get("side"), "ts": r.get("ts"), "entry": r.get("entry"), "stop": r.get("stop"),
+        "targets": r.get("targets") or [], "probability": r.get("probability"),
+        "probability_ci": list(ci) if ci else None, "sample_size": r.get("sample_size") or 0,
+        "expected_rr": r.get("expected_rr") or 0, "ev_per_trade": r.get("ev_per_trade") or 0,
+        "quantity": r.get("quantity") or 0, "instrument": inst if isinstance(inst, dict) else None,
+        "badges": r.get("badges") or [], "reasons": r.get("reasons") or [],
+        "context_reasons": r.get("context_reasons") or [], "news_reasons": r.get("news_reasons") or [],
+        "top_features": r.get("top_features") or [], "regime": r.get("regime") or "unknown",
+        "status": "expired" if r.get("status") in ("active", "pending_confirm") else r.get("status"),
+        "blocked_reason": r.get("blocked_reason") or "",
+    }
+
+
 @router.get("/signals")
 def signals(request: Request, status: str | None = None, limit: int = 100, underlying: str | None = None):
     rt = rt_of(request)
-    items = []
+    items, seen = [], set()
     for sig in list(rt.signals.recent):
         d = rt.signals.to_json(sig)
+        seen.add(d["id"])
+        items.append(d)
+    if len(items) < limit:            # older / pre-restart signals from the journal
+        try:
+            df = rt.journal.signals(start=rt.today() - timedelta(days=3), limit=limit)
+            for r in (df.to_dict(orient="records") if not df.empty else []):
+                if r.get("id") not in seen:
+                    items.append(_journal_signal_json(rt, r))
+        except Exception:
+            log.exception("journal signals read failed")
+    out = []
+    for d in items:
         if status and d.get("status") != status:
             continue
         if underlying and d.get("underlying") != underlying.upper():
             continue
-        items.append(d)
-        if len(items) >= limit:
+        out.append(d)
+        if len(out) >= limit:
             break
-    return jsonable({"signals": items})
+    return jsonable({"signals": out})
 
 
 @router.post("/signals/{sid}/confirm")
@@ -148,7 +181,7 @@ async def positions(request: Request):
     rt = rt_of(request)
     try:
         pos = await rt.exec_broker.positions()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("positions failed: %s", exc)
         pos = []
     plist = [{"symbol": p.instrument.symbol, "qty": p.net_qty, "avg_price": p.avg_price, "ltp": p.ltp,
@@ -424,7 +457,7 @@ async def replay(request: Request, underlying: str = "NIFTY", day: str | None = 
     for sid, strat in rt.strategies.items():
         try:
             found = strat.scan(feat, u, rt.market.oi_extra(u))
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
         for s in found:
             i = pos.get(pd.Timestamp(s.ts))
@@ -626,7 +659,7 @@ def expiries(request: Request, underlying: str = "NIFTY"):
     rt = rt_of(request)
     try:
         return {"expiries": [d.isoformat() for d in rt.master.expiries(_u(underlying), rt.today())[:8]]}
-    except Exception:  # noqa: BLE001
+    except Exception:
         return {"expiries": []}
 
 

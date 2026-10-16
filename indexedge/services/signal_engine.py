@@ -101,6 +101,7 @@ class SignalEngine:
             stats = self.stats_for(sid, underlying)
             sig = rt.composer.compose(raw, feat.iloc[-1], context, stats, regime, news=news,
                                       now=rt.clock.now())
+            self._align_ev(sig, stats)
             if stats.get("synthetic"):
                 sig.reasons.insert(0, SYNTHETIC_NOTE)
             if sig.status == "active" and not rt.strategy_enabled(sid, underlying):
@@ -109,6 +110,20 @@ class SignalEngine:
             await self.publish(sig, strat.name)
             out.append(sig)
         return out
+
+    def _align_ev(self, sig: Signal, stats: dict[str, Any]) -> None:
+        """Prefer the backtested expectancy (after costs, includes partial/time exits) for the ₹ expected value,
+        so the R and ₹ figures shown together always agree."""
+        exp_r = stats.get("expectancy_r")
+        if exp_r is None or int(stats.get("n") or 0) < self.rt.settings.strategies.min_trades_any:
+            return
+        inst = sig.instrument
+        pv = 0.5 if inst is not None and inst.kind.value == "OPTIDX" else 1.0
+        qty = sig.quantity or (inst.lot_size if inst is not None else 1)
+        risk_rs = sig.raw.risk_points * pv * qty
+        sig.ev_per_trade = round(float(exp_r) * risk_rs, 2)
+        sig.reasons.append(f"Expected value {float(exp_r):+.2f}R × ₹{risk_rs:,.0f} at risk = ₹{sig.ev_per_trade:,.0f} "
+                           f"(backtested expectancy after costs)")
 
     async def publish(self, sig: Signal, strategy_name: str | None = None) -> None:
         rt = self.rt
