@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Awaitable, Callable
 
 import pandas as pd
 

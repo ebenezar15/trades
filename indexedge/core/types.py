@@ -31,7 +31,7 @@ class Side(str, Enum):
     def sign(self) -> int:
         return 1 if self is Side.BUY else -1
 
-    def opposite(self) -> "Side":
+    def opposite(self) -> Side:
         return Side.SELL if self is Side.BUY else Side.BUY
 
 

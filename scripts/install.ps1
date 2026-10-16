@@ -57,7 +57,7 @@ if (-not $NoShortcut) {
     $lnk = $shell.CreateShortcut("$([Environment]::GetFolderPath('Desktop'))\IndexEdge.lnk")
     $lnk.TargetPath = "$Root\IndexEdge.bat"
     $lnk.WorkingDirectory = $Root
-    $lnk.IconLocation = "$Root\frontend\dist\favicon.ico,0"
+    if (Test-Path "$Root\scripts\indexedge.ico") { $lnk.IconLocation = "$Root\scripts\indexedge.ico,0" }
     $lnk.Description = "IndexEdge trading assistant"
     $lnk.Save()
 }

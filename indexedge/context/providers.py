@@ -118,6 +118,12 @@ class SyntheticProvider:
         price = prev * (1 + self._rng.normal(0, sigma * 0.5) / 100)
         return prev, price
 
+    def anchor(self, symbol: str, prev_close: float) -> None:
+        """Pin a symbol's previous close (e.g. GIFT Nifty to the demo Nifty's close) so derived values
+        such as the gap expectation stay plausible."""
+        _, sigma = _SYNTH_BASE.get(symbol, (100.0, 1.0))
+        self._state[symbol] = (prev_close, prev_close * (1 + self._rng.normal(0, sigma * 0.3) / 100))
+
     async def fetch(self, symbols: list[str]) -> dict[str, Quote]:
         now = self._now()
         out: dict[str, Quote] = {}
