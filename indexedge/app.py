@@ -12,7 +12,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from indexedge.api.auth import COOKIE, auth_middleware, is_local, load_or_create_token, token_ok
+from indexedge.api.auth import AuthStore, auth_middleware, load_or_create_token, request_authorised
+from indexedge.api.auth_routes import router as auth_router
 from indexedge.api.routes import router
 from indexedge.api.serialize import jsonable
 from indexedge.core import bus as topics
@@ -61,6 +62,7 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
         await rt.start()
         app.state.rt = rt
         app.state.access_token = load_or_create_token(rt.data_dir)
+        app.state.auth = AuthStore(rt.data_dir)
         app.state.sockets = set()
 
         async def reload() -> None:
@@ -88,6 +90,7 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
     app = FastAPI(title="IndexEdge", version="1.0.0", lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=2048)
     app.middleware("http")(auth_middleware)
+    app.include_router(auth_router)
     app.include_router(router)
 
     @app.exception_handler(Exception)
@@ -97,8 +100,7 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket) -> None:
-        host = socket.client.host if socket.client else None
-        if not (is_local(host) or token_ok(socket.cookies.get(COOKIE), app.state.access_token)):
+        if not request_authorised(socket, app.state.auth, app.state.access_token):
             await socket.close(code=4401)
             return
         await socket.accept()

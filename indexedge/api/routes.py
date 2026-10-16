@@ -253,7 +253,7 @@ async def positions(request: Request):
         pos = []
     plist = [{"symbol": p.instrument.symbol, "qty": p.net_qty, "avg_price": p.avg_price, "ltp": p.ltp,
               "pnl": round(p.unrealised_pnl + p.realised_pnl, 2)} for p in pos if p.net_qty or p.realised_pnl]
-    open_trades = [t.to_dict() for t in rt.trades.open_trades]
+    open_trades = [t.to_dict() for t in rt.trades.open_trades] + rt.manual.open_payload()
     return jsonable({"positions": plist, "open_trades": open_trades})
 
 
@@ -646,7 +646,7 @@ def get_settings(request: Request):
     data["live_confirm_text"] = "I UNDERSTAND THE RISK"
     from indexedge.api.auth import is_local, lan_ip
 
-    if is_local(request.client.host if request.client else None):
+    if is_local(request.client.host if request.client else None, request.headers):
         port = request.url.port or rt.settings.app.port
         data["phone_url"] = f"http://{lan_ip()}:{port}/?token={request.app.state.access_token}"
     return jsonable(data)
@@ -823,3 +823,61 @@ async def agent_switch(request: Request, body: dict = Body(...)):
 @router.post("/agent/auto-all")
 async def agent_auto_all(request: Request):
     return jsonable(await rt_of(request).set_all_auto())
+
+
+# ====================================================================== manual execution (trade on Angel One yourself)
+def _signal(rt: Any, sid: str):
+    sig = rt.signals.by_id.get(sid)
+    if sig is None:
+        raise HTTPException(404, "Signal not found (it may be from before the last restart)")
+    return sig
+
+
+@router.get("/signals/{sid}/ticket")
+async def ticket(request: Request, sid: str):
+    rt = rt_of(request)
+    try:
+        return jsonable(await rt.manual.ticket(_signal(rt, sid)))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/signals/{sid}/manual-entry")
+async def manual_entry(request: Request, sid: str, body: dict = Body(...)):
+    rt = rt_of(request)
+    try:
+        tid = await rt.manual.enter(_signal(rt, sid), float(body.get("fill_price") or 0),
+                                    int(body.get("quantity") or 0))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    await rt.bus.publish("signal", rt.signals.to_json(rt.signals.by_id[sid]))
+    return {"ok": True, "trade_id": tid}
+
+
+@router.post("/trades/{tid}/manual-exit")
+async def manual_exit(request: Request, tid: str, body: dict = Body(...)):
+    rt = rt_of(request)
+    px = float(body.get("exit_price") or 0)
+    if px <= 0:
+        raise HTTPException(400, "Exit price must be positive")
+    try:
+        await rt.manual.exit(tid, px)
+    except KeyError as exc:
+        raise HTTPException(404, "trade not found") from exc
+    return {"ok": True}
+
+
+# ====================================================================== free remote access
+@router.get("/remote")
+def remote_status(request: Request):
+    rt = rt_of(request)
+    return jsonable(rt.tunnel.info(request.app.state.auth.password_set))
+
+
+@router.post("/remote")
+async def remote_switch(request: Request, body: dict = Body(...)):
+    rt = rt_of(request)
+    res = await rt.set_remote(bool(body.get("enabled")), request.app.state.auth.password_set)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error", "could not change remote access"))
+    return jsonable(res)

@@ -127,6 +127,12 @@ class Runtime:
 
         self._build_analytics()
         self._build_execution()
+        from indexedge.services.manual import ManualDesk
+        from indexedge.services.tunnel import Tunnel
+
+        self.manual = ManualDesk(self)
+        self.manual.load_open()
+        self.tunnel = Tunnel(self.data_dir, int(s.app.port), on_url=self._on_tunnel_url)
         if self.exec_broker is self.paper:
             self._void_stale_paper_trades()
         self.market.add_tick_sink(lambda t: self.trades.on_tick(t))
@@ -145,6 +151,8 @@ class Runtime:
             if self.telegram.configured:
                 self._tasks.append(asyncio.create_task(self.telegram.poll_callbacks(self._on_telegram)))
             self._start_scheduler()
+            if self.journal.get_setting("remote_enabled", False):
+                await self.tunnel.start()
             self._tasks.append(asyncio.create_task(self._initial_jobs()))
         log.info("IndexEdge started (demo=%s, mode=%s, data=%s)", self.demo, s.execution.mode.value,
                  self.market.data_source)
@@ -525,6 +533,20 @@ class Runtime:
         except Exception:
             pass
 
+    async def _on_tunnel_url(self, url: str) -> None:
+        await self.agent.log("remote", f"Remote access link: {url} (login required)")
+        await self.notify(f"🌐 IndexEdge link for today (iPad/phone): {url}")
+
+    async def set_remote(self, enabled: bool, password_set: bool) -> dict:
+        if enabled and not password_set:
+            return {"ok": False, "error": "Create a password first (Settings → Security)"}
+        self.journal.set_setting("remote_enabled", bool(enabled))
+        if enabled:
+            await self.tunnel.start()
+        else:
+            await self.tunnel.stop()
+        return {"ok": True, **self.tunnel.info(password_set)}
+
     async def _on_alert(self, payload: dict) -> None:
         await self.agent.log("alert", f"{payload.get('title')}: {payload.get('message') or payload.get('body') or ''}",
                              "error" if payload.get("level") in ("error", "critical") else "warning")
@@ -570,6 +592,7 @@ class Runtime:
             try:
                 await self.market.flush()
                 await self.trades.on_timer()
+                await self.manual.check()
                 for sig in self.confirmations.expire(self.clock.now()):
                     await self.bus.publish(topics.SIGNAL, self.signals.to_json(sig))
                 age = self.market.feed_age_s()
@@ -735,6 +758,11 @@ class Runtime:
             except Exception:
                 pass
         await self.market.stop()
+        try:
+            if getattr(self, "tunnel", None) is not None:
+                await self.tunnel.stop()
+        except Exception:
+            pass
         try:
             await self.news.aclose()
             await self.telegram.aclose()

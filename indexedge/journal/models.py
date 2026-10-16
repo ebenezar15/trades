@@ -12,7 +12,7 @@ from typing import Any
 
 from indexedge.core.types import new_id
 
-TRADE_MODES = ("paper", "live", "backtest")
+TRADE_MODES = ("paper", "live", "backtest", "manual")
 TRADE_STATUSES = ("open", "closed")
 
 

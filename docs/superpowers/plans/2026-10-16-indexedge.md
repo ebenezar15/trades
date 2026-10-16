@@ -278,3 +278,35 @@ All JSON. Timestamps ISO-8601 with +05:30.
 ### New strategies (S2) — same Strategy plug-in contract
 `ema_pullback`, `fib_pullback`, `supertrend_pullback`, `breakout_retest`, `bollinger_reversion`, `macd_trend` (+ any equally
 popular one research finds). Each with research notes appended to `docs/STRATEGY_RESEARCH.md`.
+
+---
+
+## Iteration 3 (2026-10-16) — iPad control surface, manual execution on the PC, free remote access
+
+Engine runs on the user's PC (free). The iPad (or any browser) is the full UI. The user places orders by hand in
+Angel One on the PC; IndexEdge provides trade tickets and tracks/alerts the manual trades. No static IP needed.
+
+### Auth (all devices except the PC itself need a login)
+A request is *local* only if it comes from loopback **and** carries no proxy headers (`x-forwarded-for`,
+`cf-connecting-ip`, `forwarded`). Everything else needs a session cookie (`ie_session`) or the old pairing cookie.
+- `GET /api/auth/status` → `{logged_in, local, needs_setup, username, remote_url}` (always public)
+- `POST /api/auth/setup {username, password, setup_code?}` → first password; allowed from the PC without a code, from
+  other devices only with the 6-digit `setup_code` shown on the PC (Settings + console). Password ≥ 8 chars.
+- `POST /api/auth/login {username, password}` → sets cookie (30 days). 5 failures / 15 min / IP ⇒ 429.
+- `POST /api/auth/logout`; `POST /api/auth/password {current, new}`.
+- Any other `/api/*` without auth ⇒ 401 `{detail:"login required"}`; the SPA then shows the Login (or Setup) screen.
+
+### Free remote access (Cloudflare quick tunnel, no account)
+- `GET /api/remote` → `{enabled, status:'off'|'starting'|'on'|'error', url, message, password_set}`
+- `POST /api/remote {enabled}` — requires a password to be set; downloads `cloudflared` on first use, starts
+  `cloudflared tunnel --url http://localhost:<port>`, publishes the `https://*.trycloudflare.com` URL (shown with QR,
+  sent to Telegram). The URL changes on every start.
+
+### Manual execution (trade on Angel One yourself)
+- `GET /api/signals/{id}/ticket` → `{signal_id, strategy_name, underlying, exchange:'NFO', symbol, side:'BUY'|'SELL',
+  lots, lot_size, quantity, product:'INTRADAY', order_type:'LIMIT', ltp, limit_price, stop_trigger, stop_limit, target,
+  premium_basis:'option'|'future', index_levels:{entry, stop, targets:[..]}, notes:[..], steps:[..]}`
+- `POST /api/signals/{id}/manual-entry {fill_price, quantity}` → `{ok, trade_id}` — journals a trade with mode `manual`.
+- `POST /api/trades/{id}/manual-exit {exit_price}` → `{ok}`.
+- Manual open trades appear in `GET /api/positions` `open_trades` with `mode:'manual'`, `ltp`, `pnl`, `alert` (e.g.
+  `"STOP HIT — exit now on Angel One"`), and `index_levels`. Alerts also go out as WS `alert` + Telegram, once per level.

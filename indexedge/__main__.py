@@ -50,6 +50,26 @@ def _setup() -> None:
     if chat:
         s.notify.telegram_chat_id = chat
         s.notify.telegram_enabled = True
+    from indexedge.api.auth import AuthStore
+
+    auth = AuthStore(s.app.data_dir)
+    if not auth.password_set:
+        print("\nCreate the login you will use on your iPad / phone (at least 8 characters).")
+        user = input("Username [owner]: ").strip() or "owner"
+        while True:
+            pw = getpass.getpass("Password (Enter to skip for now): ")
+            if not pw:
+                print(f"  Skipped. On the iPad use setup code {auth.setup_code} (also shown in Settings).")
+                break
+            if pw != getpass.getpass("Repeat password: "):
+                print("  Passwords differ, try again.")
+                continue
+            try:
+                auth.set_password(user, pw)
+                print("  Login created.")
+                break
+            except ValueError as exc:
+                print(f"  {exc}")
     if secrets_status()["ANGEL_API_KEY"]:
         s.app.demo_mode = False
     s.save_user()
