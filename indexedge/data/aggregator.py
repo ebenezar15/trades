@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import Awaitable, Callable
 
 import pandas as pd
 

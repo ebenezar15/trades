@@ -8,13 +8,14 @@ Format quirks handled here (see docs/SMARTAPI_NOTES.md):
 """
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
 
 import httpx
 
@@ -115,12 +116,12 @@ class InstrumentMaster:
 
     # ------------------------------------------------------------------ construction
     @classmethod
-    def from_json(cls, rows: list[dict]) -> "InstrumentMaster":
+    def from_json(cls, rows: list[dict]) -> InstrumentMaster:
         insts = [i for i in (parse_row(r) for r in rows) if i is not None]
         return cls(insts)
 
     @classmethod
-    def load(cls, path: str | Path) -> "InstrumentMaster":
+    def load(cls, path: str | Path) -> InstrumentMaster:
         with open(path, encoding="utf-8") as fh:
             return cls.from_json(json.load(fh))
 
@@ -185,7 +186,7 @@ class InstrumentMaster:
     def strike_step(self, name: str, expiry: date) -> float:
         """Most common gap between listed strikes (ties -> smallest)."""
         strikes = self.strikes(name, expiry)
-        diffs = [round(b - a, 2) for a, b in zip(strikes, strikes[1:]) if b > a]
+        diffs = [round(b - a, 2) for a, b in itertools.pairwise(strikes) if b > a]
         if not diffs:
             raise KeyError(f"cannot derive strike step for {name} {expiry}")
         counts = Counter(diffs)
@@ -215,8 +216,7 @@ def download(url: str = DEFAULT_URL, path: str | Path = "OpenAPIScripMaster.json
         with cl.stream("GET", url) as resp:
             resp.raise_for_status()
             with open(tmp, "wb") as fh:
-                for chunk in resp.iter_bytes():
-                    fh.write(chunk)
+                fh.writelines(resp.iter_bytes())
         json.loads(tmp.read_text(encoding="utf-8"))  # validate before replacing a good copy
         os.replace(tmp, path)
     finally:

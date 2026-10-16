@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import calendar
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -275,10 +275,10 @@ def generate_option_chain(
     iv = np.clip(iv, 0.5 * atm_iv, 3.0 * atm_iv)
     ltp = np.maximum(_round_tick(_bs_price(spot, k, t, r, iv, is_call)), TICK)
 
-    dist = (k - atm) / step
+    dist = (k - spot) / step
     centre = np.where(is_call, 3.0, -3.0)
     hump = np.exp(-(((dist - centre) / 7.0) ** 2))
-    otm = np.where(is_call, dist >= 0, dist <= 0)
+    otm = np.where(is_call, k >= spot, k <= spot)
     weight = hump * np.where(otm, 1.0, 0.35) + 0.04
     big_round = np.isclose(np.mod(k, step * 10), 0)
     mid_round = np.isclose(np.mod(k, step * 2), 0)

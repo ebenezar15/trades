@@ -26,7 +26,7 @@ async def public_ip(url: str = DEFAULT_IP_URL, client: httpx.AsyncClient | None 
         if text.startswith("{"):
             text = str(resp.json().get("ip", "")).strip()
         return str(ipaddress.ip_address(text))
-    except Exception as exc:  # network errors, bad payloads
+    except Exception as exc:  # noqa: BLE001 - network errors, bad payloads
         log.warning("public IP lookup failed: %s", exc.__class__.__name__)
         return None
 

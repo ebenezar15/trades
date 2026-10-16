@@ -60,7 +60,7 @@ def chunks_for(tf: str, start: datetime, end: datetime) -> list[tuple[datetime, 
 
 
 class HistoryService:
-    def __init__(self, broker: "BrokerBase", store: "CandleStore", master: "InstrumentMaster | None",
+    def __init__(self, broker: BrokerBase, store: CandleStore, master: InstrumentMaster | None,
                  clock: Clock | None = None, limiter: RateLimiter | None = None) -> None:
         self.broker = broker
         self.store = store
@@ -84,7 +84,7 @@ class HistoryService:
             await self.limiter.acquire()
             try:
                 df = await self.broker.get_candles(inst.exchange, inst.token, tf, s, e)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 self.errors += 1
                 log.warning("candle chunk %s %s %s..%s failed: %s", inst.symbol, tf, s, e, exc)
                 continue
@@ -133,6 +133,6 @@ def yfinance_download(ticker: str, interval: str = "5m", period: str = "60d") ->
             idx = idx.tz_localize("UTC" if interval[-1] in "mh" else IST)
         df.index = idx.tz_convert(IST)
         return df.dropna(subset=["close"])
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log.warning("yfinance download %s failed: %s", ticker, exc)
         return empty_candles()

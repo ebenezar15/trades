@@ -13,7 +13,8 @@ import asyncio
 import math
 import time
 from collections import deque
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Self
 
 
 class RateLimiter:
@@ -83,7 +84,7 @@ class RateLimiter:
                     return
                 await self._sleep(wait)
 
-    async def __aenter__(self) -> "RateLimiter":
+    async def __aenter__(self) -> Self:
         await self.acquire()
         return self
 

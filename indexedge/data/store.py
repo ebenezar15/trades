@@ -28,7 +28,7 @@ def empty_candles() -> pd.DataFrame:
 
 def _normalise(df: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(df.index, pd.DatetimeIndex):
-        raise ValueError("candle DataFrame needs a DatetimeIndex")
+        raise TypeError("candle DataFrame needs a DatetimeIndex")
     out = df.copy()
     out.index = out.index.tz_localize(IST) if out.index.tz is None else out.index.tz_convert(IST)
     keep = [c for c in out.columns if c in _AGG]

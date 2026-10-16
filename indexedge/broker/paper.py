@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable
 
 import pandas as pd
 
