@@ -24,7 +24,8 @@ leaning.
 **When it fails.** False fires near the open, fires into major levels, and squeezes that resolve sideways.
 
 **Rules (defaults).**
-- 15-min bars (5-min optional via ``htf_minutes=5``). Squeeze ON for ≥ 6 consecutive bars, then the first OFF bar.
+- 15-min bars (5-min optional via ``htf_minutes=5``). Squeeze ON for ≥ 6 consecutive bars, then the first
+  OFF bar.
 - Long if histogram > 0 and rising; short if < 0 and falling. Ignore fires before 09:45.
 - Stop = tighter of the squeeze-period range's opposite side and 1.5×ATR(14). Target 3R. Exit by 15:15.
 
@@ -48,7 +49,9 @@ class SqueezeBreakout(Strategy):
     }
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         hm = int(p["htf_minutes"])

@@ -53,7 +53,9 @@ class VWAPPullback(Strategy):
     }
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         o, h, lo, c, a = bv["open"], bv["high"], bv["low"], bv["close"], bv["atr14"]
@@ -102,7 +104,8 @@ class VWAPPullback(Strategy):
                         f" {p['trend_frac'] * 100:.0f}%)"),
                         f"EMA 9 {fmt(e9[i])} {'>' if side is Side.BUY else '<'} EMA 21 {fmt(e21[i])}",
                         f"Pulled back to VWAP {fmt(vw[i])} (extreme {fmt(swing)}) within {nb} bars",
-                        f"Close {fmt(entry)} back {trend} VWAP with body {body / rng * 100:.0f}% of the candle",
+                        (f"Close {fmt(entry)} back {trend} VWAP with body {body / rng * 100:.0f}% of the"
+                        f" candle"),
                         (f"Stop {fmt(stop)}, risk {fmt(abs(entry - stop))} pts, target {fmt(tg[0])}"
                         f" ({p['target_r']}R)"),
                     ]

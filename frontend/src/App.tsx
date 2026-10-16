@@ -19,6 +19,8 @@ const Premarket = lazy(() => import('./pages/Premarket'));
 const Eod = lazy(() => import('./pages/Eod'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Health = lazy(() => import('./pages/Health'));
+const Agent = lazy(() => import('./pages/Agent'));
+const Connect = lazy(() => import('./pages/Connect'));
 
 export default function App() {
   useEffect(() => wsManager.start(), []);
@@ -42,6 +44,8 @@ export default function App() {
               <Route path="/eod" element={<Eod />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/health" element={<Health />} />
+              <Route path="/agent" element={<Agent />} />
+              <Route path="/connect" element={<Connect />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

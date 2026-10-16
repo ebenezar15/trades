@@ -17,10 +17,13 @@ from indexedge.strategies.straddle import leg_values, time_to_expiry
 
 EXPECTED = {"orb15", "vwap_pullback", "ema_supertrend_adx", "triple_supertrend", "cpr_pivot", "cpr_vwap",
             "squeeze_breakout", "rsi_divergence", "oi_pcr", "straddle_920", "expiry_straddle", "gap_fill",
-            "inside_bar_breakout"}
+            "inside_bar_breakout",
+            # iteration 2
+            "ema_pullback", "fib_pullback", "supertrend_pullback", "breakout_retest", "bollinger_reversion",
+            "macd_trend"}
 
 
-def test_registry_has_all_13():
+def test_registry_has_all_strategies():
     strats = all_strategies()
     assert set(strats) == EXPECTED == set(STRATEGY_IDS)
     for sid, s in strats.items():
@@ -98,6 +101,8 @@ def test_latest_returns_signal_on_last_bar(feat250):
     ("squeeze_breakout", "09:45", "14:45"), ("rsi_divergence", "09:45", "14:30"), ("gap_fill", "09:30", "11:00"),
     ("inside_bar_breakout", "09:45", "14:00"), ("straddle_920", "09:20", "09:20"),
     ("expiry_straddle", "10:00", "10:00"),
+    ("ema_pullback", "09:45", "14:45"), ("fib_pullback", "09:45", "14:45"), ("supertrend_pullback", "09:45", "14:45"),
+    ("breakout_retest", "09:35", "14:45"), ("bollinger_reversion", "09:45", "14:45"), ("macd_trend", "09:45", "14:45"),
 ])
 def test_entry_windows_use_bar_close(sid, start, end, feat250):
     sigs = get_strategy(sid).scan(feat250, "NIFTY")
@@ -109,7 +114,9 @@ def test_entry_windows_use_bar_close(sid, start, end, feat250):
 
 def test_per_day_limits(feat250):
     for sid, limit in (("vwap_pullback", 2), ("cpr_vwap", 1), ("gap_fill", 1), ("inside_bar_breakout", 2),
-                       ("oi_pcr", 1), ("straddle_920", 1)):
+                       ("oi_pcr", 1), ("straddle_920", 1), ("ema_pullback", 2), ("fib_pullback", 2),
+                       ("supertrend_pullback", 2), ("breakout_retest", 2), ("bollinger_reversion", 2),
+                       ("macd_trend", 2)):
         sigs = get_strategy(sid).scan(feat250, "NIFTY", extra_for(sid, feat250.index))
         counts = pd.Series([s.ts.date() for s in sigs]).value_counts()
         assert counts.max() <= limit, sid

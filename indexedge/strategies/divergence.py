@@ -12,7 +12,8 @@ from indexedge.strategies.base import BarView, Strategy, fmt, hhmm_to_min, r_tar
 LEARN = """\
 ### RSI Divergence Reversal
 
-**What it is.** Price makes a higher high but RSI(14) makes a lower high (bearish divergence) — or price makes a
+**What it is.** Price makes a higher high but RSI(14) makes a lower high (bearish divergence) — or price
+makes a
 lower low while RSI makes a higher low (bullish). Momentum is fading even though price pushed further.
 
 **Why it can work.** Exhausted moves often stall when fewer participants chase the new extreme; divergence
@@ -54,7 +55,9 @@ class RsiDivergence(Strategy):
     }
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         h, lo, c, a, r, vw = bv["high"], bv["low"], bv["close"], bv["atr14"], bv["rsi14"], bv["vwap"]
@@ -114,7 +117,8 @@ class RsiDivergence(Strategy):
                     (f"Regular {kind} divergence: price {pw} {fmt(lo[p1] if sg > 0 else h[p1])} →"
                     f" {fmt(extreme)} while RSI made a {rw} {r[p1]:.1f} → {r[p2]:.1f}"),
                     f"Pivots {p2 - p1} bars apart, each confirmed {sw} bars after it formed",
-                    f"Close {fmt(entry)} broke the second pivot bar's {'low' if sg < 0 else 'high'} {fmt(lvl)}",
+                    (f"Close {fmt(entry)} broke the second pivot bar's {'low' if sg < 0 else 'high'}"
+                    f" {fmt(lvl)}"),
                     (f"Stop {fmt(stop)} beyond the extreme; target {fmt(tgt)}"
                     f" ({'VWAP' if use_vwap else str(p['target_r']) + 'R'})"),
                 ]

@@ -50,7 +50,9 @@ class InsideBarBreakout(Strategy):
     }
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         c, a5 = bv["close"], bv["atr14"]
@@ -99,7 +101,8 @@ class InsideBarBreakout(Strategy):
                     stop, which = (ll[j - 1] if sg > 0 else hh[j - 1]), "mother bar"
                 tg = r_targets(side, entry, stop, [p["target_r"]])
                 reasons = [
-                    f"{hm}-min inside bar {fmt(ll[j])}–{fmt(hh[j])} inside mother {fmt(ll[j - 1])}–{fmt(hh[j - 1])}",
+                    (f"{hm}-min inside bar {fmt(ll[j])}–{fmt(hh[j])} inside mother"
+                    f" {fmt(ll[j - 1])}–{fmt(hh[j - 1])}"),
                     (f"Mother range {fmt(m_rng)} = {m_rng / a15[j]:.2f}× ATR({hm}m) (allowed"
                     f" {p['min_mother_atr']}–{p['max_mother_atr']}×)"),
                     (f"5-min close {fmt(entry)} broke the mother {'high' if sg > 0 else 'low'}"

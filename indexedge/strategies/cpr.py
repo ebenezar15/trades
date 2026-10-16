@@ -90,7 +90,9 @@ class CprPivot(Strategy):
     }
     learn = LEARN_PIVOT
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         o, h, lo, c = bv["open"], bv["high"], bv["low"], bv["close"]
@@ -139,7 +141,8 @@ class CprPivot(Strategy):
                         names = ("TC", "R1/R2") if side is Side.BUY else ("BC", "S1/S2")
                         reasons = [
                             f"Today is a {kind}: breakout mode",
-                            f"{hm}-min close {fmt(cc)} {'above' if sg > 0 else 'below'} {names[0]} {fmt(lvl)}",
+                            (f"{hm}-min close {fmt(cc)} {'above' if sg > 0 else 'below'} {names[0]}"
+                            f" {fmt(lvl)}"),
                             (f"Stop {fmt(stop)} ({'CPR' if stop == opp else 'signal-candle extreme'}),"
                             f" targets {names[1]} {', '.join(fmt(t) for t in tg)}"),
                         ]
@@ -175,7 +178,8 @@ class CprPivot(Strategy):
                             f"Today is a {kind}: reversion mode",
                             (f"First touch of {name} {fmt(lvl)} rejected: close {fmt(entry)} back"
                             f" {'below' if side is Side.SELL else 'above'} it"),
-                            (f"Stop {fmt(stop)} = {name} ± {p['level_stop_atr']}×ATR(15-min) {fmt(a15_base[i])};"
+                            (f"Stop {fmt(stop)} = {name} ± {p['level_stop_atr']}×ATR(15-min)"
+                             f" {fmt(a15_base[i])};"
                             f" target pivot {fmt(tgt)}"),
                         ]
                         out.append(self._signal(bv, i, underlying, side, entry, stop, [tgt], reasons))
@@ -198,7 +202,9 @@ class CprVwap(Strategy):
     }
     learn = LEARN_CPR_VWAP
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         o, h, lo, c, a, vw = bv["open"], bv["high"], bv["low"], bv["close"], bv["atr14"], bv["vwap"]
@@ -244,7 +250,8 @@ class CprVwap(Strategy):
                 rel = "above" if side is Side.BUY else "below"
                 reasons = [
                     f"CPR width {wd[s]:.3f}% ≤ {p['max_width_pct']}% (narrow/normal day)",
-                    (f"At {p['bias_time']} close {fmt(c[b])} was {rel} {names[0]} {fmt(tc[b] if sg > 0 else bc[b])}"
+                    (f"At {p['bias_time']} close {fmt(c[b])} was {rel} {names[0]}"
+                     f" {fmt(tc[b] if sg > 0 else bc[b])}"
                     f" and VWAP {fmt(vw[b])}"),
                     f"Pulled back to {fmt(lvl)} and closed {rel} it at {fmt(entry)}",
                     f"Stop {fmt(stop)}, targets {', '.join(fmt(t) for t in tg)}",

@@ -1,7 +1,7 @@
 // App shell: header (mode badge, market status, connection dot, theme), desktop sidebar, mobile bottom nav,
 // demo banner, first-launch disclaimer, toasts.
 import { useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { MOCK } from '../api/client';
 import { useWsState } from '../api/ws';
 import { useApp } from '../lib/app-context';
@@ -9,10 +9,12 @@ import { cls, timeIST } from '../lib/format';
 import { useTheme } from '../lib/theme';
 import { DisclaimerModal } from './Disclaimer';
 import { Icon } from './Icon';
+import { DataSourceBadge } from './ui';
 
 export const NAV = [
   { to: '/', label: 'Dashboard', icon: 'dashboard' },
   { to: '/signals', label: 'Signals', icon: 'signals' },
+  { to: '/agent', label: 'Agent', icon: 'agent' },
   { to: '/option-chain', label: 'Option Chain', icon: 'chain' },
   { to: '/context', label: 'Market Context', icon: 'context' },
   { to: '/news', label: 'News & Events', icon: 'news' },
@@ -57,8 +59,14 @@ function Header() {
         {status && (
           <span className={cls('chip', status.market_open ? 'border-up/40 text-up' : 'text-muted')}>
             <span className={cls('h-1.5 w-1.5 rounded-full', status.market_open ? 'bg-up' : 'bg-muted')} />
-            {status.market_open ? 'Market open' : 'Closed'}
+            <span className="sm:hidden">{status.market_open ? 'Open' : 'Closed'}</span>
+            <span className="hidden sm:inline">{status.market_open ? 'Market open' : 'Closed'}</span>
           </span>
+        )}
+        {status?.data_source && (
+          <Link to={status.data_source === 'angel_one' ? '/agent' : '/connect'} className="min-w-0">
+            <DataSourceBadge source={status.data_source} short />
+          </Link>
         )}
         {status?.risk.locked && (
           <span className="chip hidden border-down/50 text-down sm:inline-flex" title={status.risk.lock_reason}>
@@ -83,7 +91,16 @@ function Header() {
       </div>
       {(status?.demo_mode || MOCK) && (
         <div className="border-t border-warn/30 bg-warn/15 px-3 py-1 text-center text-xs font-medium text-warn">
-          {MOCK ? 'MOCK MODE — UI running on built-in fake data' : 'DEMO MODE — synthetic data, broker not configured'}
+          {MOCK
+            ? 'MOCK MODE — UI running on built-in fake data'
+            : status?.data_source === 'yahoo'
+              ? 'DEMO MODE — delayed Yahoo data, broker not connected'
+              : 'DEMO MODE — synthetic data, broker not configured'}
+          {status?.data_source !== 'angel_one' && (
+            <Link to="/connect" className="ml-2 whitespace-nowrap font-bold underline underline-offset-2">
+              Connect Angel One →
+            </Link>
+          )}
         </div>
       )}
       {!status?.demo_mode && !MOCK && status?.data_source === 'synthetic' && (

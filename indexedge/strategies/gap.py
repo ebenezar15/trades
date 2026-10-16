@@ -38,7 +38,10 @@ the first candle decides which one applies.
 class GapFill(Strategy):
     id = "gap_fill"
     name = "Gap Fill / Gap-and-Go"
-    description = "Fade a 0.3–1.5% opening gap toward the previous close (or ride it on a strong first candle)."
+    description = (
+        "Fade a 0.3–1.5% opening gap toward the previous close (or ride it on a strong first"
+        " candle)."
+    )
     required_columns = ("open", "high", "low", "close", "atr14", "vwap", "prev_close")
     default_params: ClassVar[dict[str, Any]] = {
         "min_gap_pct": {"NIFTY": 0.30, "BANKNIFTY": 0.40},
@@ -52,13 +55,17 @@ class GapFill(Strategy):
     }
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
-        o, h, lo, c, a, vw, pc = (bv[k] for k in ("open", "high", "low", "close", "atr14", "vwap", "prev_close"))
+        cols = ("open", "high", "low", "close", "atr14", "vwap", "prev_close")
+        o, h, lo, c, a, vw, pc = (bv[k] for k in cols)
         first_end = 9 * 60 + 15 + int(p["first_minutes"])
         end = hhmm_to_min(p["entry_end"])
-        gmin, gmax = float(self._param("min_gap_pct", underlying)), float(self._param("max_gap_pct", underlying))
+        gmin = float(self._param("min_gap_pct", underlying))
+        gmax = float(self._param("max_gap_pct", underlying))
         ranges: list[float] = []                      # previous sessions' first-candle ranges
         out: list[StrategySignal] = []
         for _d, s, e in bv.day_slices():
@@ -80,7 +87,8 @@ class GapFill(Strategy):
                 continue
             gsg = 1 if gap > 0 else -1
             avg_rng = float(np.mean(hist)) if len(hist) >= 3 else np.nan
-            go = (np.isfinite(avg_rng) and gsg * (f_close - f_open) > 0 and f_rng > p["go_range_mult"] * avg_rng)
+            go = (np.isfinite(avg_rng) and gsg * (f_close - f_open) > 0
+                  and f_rng > p["go_range_mult"] * avg_rng)
             for i in range(fc[-1] + 1, e):
                 if bv.close_min[i] > end:
                     break
@@ -96,9 +104,11 @@ class GapFill(Strategy):
                     tg = r_targets(side, entry, stop, [p["go_target_r"]])
                     reasons = [
                         f"Gap {gap:+.2f}% vs previous close {fmt(prev)} (allowed {gmin}–{gmax}%)",
-                        (f"Gap-and-go mode: first {p['first_minutes']}-min candle closed in the gap direction with"
+                        (f"Gap-and-go mode: first {p['first_minutes']}-min candle closed in the gap"
+                         f" direction with"
                         f" range {fmt(f_rng)} > {p['go_range_mult']}× the 10-day average {fmt(avg_rng)}"),
-                        f"Close {fmt(entry)} beyond the first-candle {'high' if gsg > 0 else 'low'} {fmt(lvl)}",
+                        (f"Close {fmt(entry)} beyond the first-candle {'high' if gsg > 0 else 'low'}"
+                        f" {fmt(lvl)}"),
                         (f"Stop {fmt(stop)} (other end of the first candle), target {fmt(tg[0])}"
                         f" ({p['go_target_r']}R)"),
                     ]

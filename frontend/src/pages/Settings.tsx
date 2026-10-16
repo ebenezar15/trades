@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { NewsSource, NotifySettings, RiskSettings, SettingsPatch } from '../api/types';
+import { ConnectWizard, SecretRow, useSaver } from '../components/ConnectWizard';
 import { DisclaimerText } from '../components/Disclaimer';
 import { Banner, Card, Chip, ErrorBox, Loading, Modal, PageHeader, Segmented, TableWrap, Toggle } from '../components/ui';
 import { useApp } from '../lib/app-context';
@@ -24,69 +25,6 @@ const RISK_FIELDS: Array<{ k: keyof RiskSettings; label: string; step?: number; 
   { k: 'revenge_size_multiplier', label: 'Max size after loss (×)', step: 0.1 },
   { k: 'stale_feed_seconds', label: 'Stale feed (s)' },
 ];
-
-const SECRET_HELP: Record<string, string> = {
-  ANGEL_API_KEY: 'SmartAPI app API key',
-  ANGEL_CLIENT_CODE: 'Angel One client code',
-  ANGEL_PIN: 'Trading PIN',
-  ANGEL_TOTP_SECRET: 'TOTP secret (base32) from SmartAPI 2FA setup',
-  TELEGRAM_BOT_TOKEN: 'Telegram bot token from @BotFather',
-};
-
-function useSaver() {
-  const { toast } = useApp();
-  const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<unknown>, ok: string) => {
-    setBusy(true);
-    try {
-      await fn();
-      toast(ok, 'up');
-      return true;
-    } catch (e) {
-      toast(`Failed: ${e instanceof Error ? e.message : e}`, 'down');
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, run };
-}
-
-function SecretRow({ name, configured, onSaved }: { name: string; configured: boolean; onSaved: () => void }) {
-  const [v, setV] = useState('');
-  const { busy, run } = useSaver();
-  return (
-    <div className="grid gap-1 border-b border-line/60 py-2 last:border-0 sm:grid-cols-[14rem_minmax(0,1fr)_auto] sm:items-center sm:gap-2">
-      <div>
-        <div className="font-mono text-xs">{name}</div>
-        <div className="text-[11px] text-muted">{SECRET_HELP[name] ?? ''}</div>
-      </div>
-      <input
-        type="password"
-        autoComplete="new-password"
-        className="input"
-        placeholder={configured ? '•••••••• (configured — enter to replace)' : 'not set'}
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-      />
-      <div className="flex items-center gap-2">
-        {configured ? <Chip tone="up">✓ configured</Chip> : <Chip tone="warn">missing</Chip>}
-        <button
-          className="btn"
-          disabled={!v || busy}
-          onClick={async () => {
-            if (await run(() => api.setSecret(name, v), `${name} saved to OS keyring`)) {
-              setV('');
-              onSaved();
-            }
-          }}
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function PhoneAccess({ url }: { url: string }) {
   const [qr, setQr] = useState('');
@@ -145,6 +83,8 @@ export default function Settings() {
       <PageHeader title="Settings" />
       {s.error && <ErrorBox error={s.error} onRetry={s.reload} />}
       {!d && s.loading && <Loading />}
+
+      <ConnectWizard compact={status?.data_source === 'angel_one'} />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card title="Broker (Angel One)">

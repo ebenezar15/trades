@@ -15,7 +15,8 @@ LEARN = """\
 **What it is.** The high and low of the first 15 minutes (09:15–09:30) form the *opening range*. A 5-minute
 candle that **closes** beyond that range, on above-average volume, is traded in the breakout direction.
 
-**Why it can work.** The first minutes absorb overnight news and order imbalances. A decisive close outside the
+**Why it can work.** The first minutes absorb overnight news and order imbalances. A decisive close outside
+the
 range, with volume, often marks the side that "won" the open and the start of a trend day.
 
 **When it fails.** Range days and choppy, low-volume sessions produce false breakouts that snap back into the
@@ -23,7 +24,8 @@ range. Very wide opening ranges (gap days) put the stop far away, so the day is 
 
 **Rules (defaults).**
 - Range = 09:15–09:30. Entry on a 5-min **close** beyond range high/low ± 0.05% buffer, until 11:30.
-- Volume of the breakout candle ≥ 1.5× the average of the previous 20 bars (skipped when volume is unavailable).
+- Volume of the breakout candle ≥ 1.5× the average of the previous 20 bars (skipped when volume is
+  unavailable).
 - Stop at the opposite end of the range, but never more than 3×ATR(14) away.
 - Skip the day if the range is wider than 0.8% (Nifty) / 1.0% (Bank Nifty).
 - Targets 1R (book half, move stop to breakeven) and 2R. One trade per direction per day; exit by 15:15.
@@ -51,7 +53,9 @@ class ORB15(Strategy):
     param_grid: ClassVar[dict[str, list[Any]] | None] = {"vol_mult": [1.2, 1.5, 2.0]}
     learn = LEARN
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         h, lo, c, v, a = bv["high"], bv["low"], bv["close"], bv["volume"], bv["atr14"]
@@ -96,7 +100,8 @@ class ORB15(Strategy):
                     word = "high" if side is Side.BUY else "low"
                     lvl = rh if side is Side.BUY else rl
                     reasons = [
-                        (f"Close {fmt(entry)} broke the {p['range_minutes']}-min opening-range {word} {fmt(lvl)}"
+                        (f"Close {fmt(entry)} broke the {p['range_minutes']}-min opening-range {word}"
+                         f" {fmt(lvl)}"
                         f" (buffer {p['buffer_pct']}%)"),
                         f"Opening range {fmt(rl)}–{fmt(rh)} is {width_pct:.2f}% wide (limit {max_rng}%)",
                         (f"Volume {ratio:.1f}× the {n_avg}-bar average (needs ≥ {p['vol_mult']}×)" if has_vol

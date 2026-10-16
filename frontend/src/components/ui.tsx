@@ -238,3 +238,27 @@ export function Stat({ label, value, tone, sub }: { label: string; value: ReactN
 export function TableWrap({ children }: { children: ReactNode }) {
   return <div className="-mx-3 overflow-x-auto px-3 sm:-mx-4 sm:px-4">{children}</div>;
 }
+
+const DATA_SOURCE: Record<string, { label: string; short: string; tone: Tone; title: string }> = {
+  angel_one: { label: 'Live · Angel One', short: 'Live', tone: 'up', title: 'Real-time data from Angel One SmartAPI' },
+  yahoo: { label: 'Yahoo · delayed', short: 'Delayed', tone: 'warn', title: 'Yahoo Finance data, delayed ~1–2 min (no index volume)' },
+  synthetic: { label: 'Synthetic demo', short: 'Demo', tone: 'warn', title: 'Synthetic demo data — not real prices' },
+};
+/** Market-data source badge (angel_one / yahoo / synthetic). `short` shows a compact label below sm. */
+export function DataSourceBadge({ source, short, className }: { source: string | null | undefined; short?: boolean; className?: string }) {
+  if (!source) return null;
+  const d = DATA_SOURCE[source] ?? { label: titleCase(source), short: titleCase(source), tone: 'neutral' as Tone, title: `Data source: ${source}` };
+  return (
+    <Chip tone={d.tone} title={d.title} className={cls('whitespace-nowrap', className)}>
+      <span className={cls('h-1.5 w-1.5 rounded-full', d.tone === 'up' ? 'bg-up' : d.tone === 'warn' ? 'bg-warn' : 'bg-muted')} />
+      {short ? (
+        <>
+          <span className="sm:hidden">{d.short}</span>
+          <span className="hidden sm:inline">{d.label}</span>
+        </>
+      ) : (
+        d.label
+      )}
+    </Chip>
+  );
+}

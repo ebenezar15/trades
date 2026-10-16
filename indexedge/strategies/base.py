@@ -145,7 +145,9 @@ class Strategy(ABC):
 
     # ------------------------------------------------------------------ for subclasses
     @abstractmethod
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         ...
 
     def _param(self, key: str, underlying: str) -> Any:

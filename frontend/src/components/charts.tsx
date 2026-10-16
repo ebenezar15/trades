@@ -14,7 +14,7 @@ import {
   type LineData,
 } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
-import type { Candle, CandlesResponse, KeyLevels, LinePoint } from '../api/types';
+import type { Candle, CandleMarker, CandlesResponse, KeyLevels, LinePoint, TradeLine } from '../api/types';
 import { IST_OFFSET_S } from '../lib/format';
 import { chartColors, useTheme, type Theme } from '../lib/theme';
 
@@ -65,9 +65,13 @@ interface CandleChartProps {
   candles: Candle[];
   overlays?: CandlesResponse['overlays'] | null;
   levels?: KeyLevels | null;
-  show?: { ema?: boolean; vwap?: boolean; supertrend?: boolean; levels?: boolean; volume?: boolean };
+  show?: { ema?: boolean; vwap?: boolean; supertrend?: boolean; levels?: boolean; volume?: boolean; signals?: boolean };
   markers?: ChartMarker[];
   lines?: ChartLine[];
+  /** signal markers from /api/candles (hidden when show.signals === false) */
+  signalMarkers?: CandleMarker[] | null;
+  /** open-trade entry/stop/target lines from /api/candles (hidden when show.signals === false) */
+  tradeLines?: TradeLine[] | null;
   live?: Candle | null;
   height?: number;
   /** change this to force a fitContent (e.g. when switching underlying) */
@@ -76,7 +80,21 @@ interface CandleChartProps {
   fixedBars?: number;
 }
 
-export function CandleChart({ candles, overlays, levels, show = {}, markers, lines, live, height = 380, fitKey, fixedBars }: CandleChartProps) {
+const toUnix = (v: number | string) => (typeof v === 'number' ? v : Math.floor(Date.parse(v) / 1000));
+
+/** Price lines for open trades: entry (blue), stop (red), targets (green), e.g. "T1 VWAP Pullback". */
+export function tradeLinesToChartLines(tls: TradeLine[] | null | undefined): ChartLine[] {
+  const out: ChartLine[] = [];
+  (tls ?? []).forEach((tl) => {
+    const lab = tl.label ? ` ${tl.label}` : '';
+    if (Number.isFinite(tl.entry)) out.push({ price: tl.entry, color: '#3b82f6', title: `Entry${lab}` });
+    if (Number.isFinite(tl.stop)) out.push({ price: tl.stop, color: '#ef4444', title: `SL${lab}`, dashed: true });
+    (tl.targets ?? []).forEach((p, i) => Number.isFinite(p) && out.push({ price: p, color: '#22c55e', title: `T${i + 1}${lab}`, dashed: true }));
+  });
+  return out;
+}
+
+export function CandleChart({ candles, overlays, levels, show = {}, markers, lines, signalMarkers, tradeLines, live, height = 380, fitKey, fixedBars }: CandleChartProps) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const s = useRef<{
@@ -170,16 +188,36 @@ export function CandleChart({ candles, overlays, levels, show = {}, markers, lin
         S.priceLines.push(S.candle!.createPriceLine({ price: v, color: st.color, lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: st.title }));
       });
     }
-    lines?.forEach((l) =>
-      S.priceLines.push(S.candle!.createPriceLine({ price: l.price, color: l.color, lineWidth: 1, lineStyle: l.dashed ? LineStyle.Dashed : LineStyle.Solid, axisLabelVisible: true, title: l.title })),
+    const all = [...(lines ?? []), ...(show.signals !== false ? tradeLinesToChartLines(tradeLines) : [])];
+    all.forEach((l) =>
+      S.priceLines.push(
+        S.candle!.createPriceLine({ price: l.price, color: l.color, lineWidth: l.color === '#3b82f6' ? 2 : 1, lineStyle: l.dashed ? LineStyle.Dashed : LineStyle.Solid, axisLabelVisible: true, title: l.title }),
+      ),
     );
-  }, [levels, lines, show.levels]);
+  }, [levels, lines, tradeLines, show.levels, show.signals]);
 
   useEffect(() => {
-    const ms: SeriesMarker<Time>[] = (markers ?? []).map((m) => ({ ...m, time: t(m.time) }));
+    const S = s.current;
+    if (!S.candle) return;
+    if (!candles.length) {
+      S.candle.setMarkers([]);
+      return;
+    }
+    const sig: ChartMarker[] =
+      show.signals !== false
+        ? (signalMarkers ?? [])
+            .filter((m) => m && m.time != null)
+            .map((m) => ({ time: toUnix(m.time), position: m.position, shape: m.shape, color: m.color, text: m.text }))
+            .filter((m) => Number.isFinite(m.time))
+        : [];
+    const ms: SeriesMarker<Time>[] = [...(markers ?? []), ...sig].map((m) => ({ ...m, time: t(m.time) }));
     ms.sort((a, b) => (a.time as number) - (b.time as number));
-    s.current.candle?.setMarkers(ms);
-  }, [markers, candles]);
+    try {
+      S.candle.setMarkers(ms);
+    } catch {
+      /* marker outside data range — ignore */
+    }
+  }, [markers, signalMarkers, show.signals, candles]);
 
   // live update of last candle
   useEffect(() => {

@@ -45,7 +45,8 @@ not remove these.
 **Rules (defaults).** Enter on the first bar of agreement (09:30–14:30). Stop = ST(12, 3) line (at least
 0.3×ATR away). Target 2R. Time exit 15:00.
 
-**Risk / backtest note.** The live rule exits when any one Supertrend flips; the backtest approximates this with
+**Risk / backtest note.** The live rule exits when any one Supertrend flips; the backtest approximates this
+with
 the 2R target, the stop and the 15:00 time exit.
 """
 
@@ -73,7 +74,9 @@ class EmaSupertrendAdx(Strategy):
     param_grid: ClassVar[dict[str, list[Any]] | None] = {"adx_min": [20.0, 22.0, 25.0]}
     learn = LEARN_EMA
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         c, a = bv["close"], bv["atr14"]
@@ -130,7 +133,9 @@ class TripleSupertrend(Strategy):
     }
     learn = LEARN_TRIPLE
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         c, a, ag, st, ad = bv["close"], bv["atr14"], bv["st_agree"], bv["st_12_3"], bv["adx14"]

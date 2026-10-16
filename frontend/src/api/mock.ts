@@ -2,6 +2,12 @@
 // be developed and screenshotted without the Python backend. Never bundled into normal builds (dynamic import
 // behind the MOCK flag, which Vite statically replaces).
 import type {
+  AgentLogEntry,
+  AgentResponse,
+  BrokerSetupResponse,
+  BrokerTestResponse,
+  CandleMarker,
+  TradeLine,
   AnalyticsResponse,
   BacktestResponse,
   Candle,
@@ -209,7 +215,37 @@ function candlesResp(underlying: string, limit: number): CandlesResponse {
     candles: c,
     overlays: { ema9: cut(ov.ema9), ema21: cut(ov.ema21), vwap: cut(ov.vwap), supertrend: cut(ov.supertrend) },
     levels: levels(all),
+    ...annotations(underlying, c),
   };
+}
+/** Signal markers + open-trade lines, anchored to real bars of the mocked series. */
+function annotations(underlying: string, c: Candle[]): { markers: CandleMarker[]; trade_lines: TradeLine[] } {
+  const n = c.length;
+  const bar = (back: number) => c[Math.max(0, n - 1 - back)];
+  const defs: Array<[number, 'BUY' | 'SELL', string, string, string]> =
+    underlying === 'NIFTY'
+      ? [[2, 'BUY', 'VWAP Pullback', 'sig-001', 'pending_confirm'], [12, 'SELL', 'ORB 15m', 'sig-004', 'blocked'], [24, 'BUY', 'EMA+ST+ADX', 'sig-005', 'taken']]
+      : [[5, 'SELL', 'Straddle', 'sig-002', 'active'], [9, 'BUY', 'Squeeze', 'sig-003', 'active'], [30, 'SELL', 'CPR Bounce', 'sig-006', 'skipped']];
+  const markers: CandleMarker[] = defs.map(([back, side, text, id, status]) => {
+    const b = bar(back);
+    const buy = side === 'BUY';
+    const dim = status === 'blocked' || status === 'skipped';
+    return {
+      time: b.time,
+      position: buy ? 'belowBar' : 'aboveBar',
+      shape: buy ? 'arrowUp' : 'arrowDown',
+      color: dim ? '#94a3b8' : buy ? '#22c55e' : '#ef4444',
+      text: `${side} ${text}${status === 'blocked' ? ' (blocked)' : ''}`,
+      signal_id: id,
+      status,
+    };
+  });
+  const last = c[n - 1]?.close ?? 0;
+  const trade_lines: TradeLine[] =
+    underlying === 'NIFTY'
+      ? [{ trade_id: 'T9001', side: 'BUY', entry: round(last - 32), stop: round(last - 70), targets: [round(last + 8), round(last + 46)], status: 'open', label: 'EMA+ST+ADX' }]
+      : [];
+  return { markers, trade_lines };
 }
 const ltp = (u: string) => {
   const s = seriesFor(u);
@@ -238,6 +274,9 @@ const state = {
   notes: {} as Record<string, TradeNote[]>,
   strategyOverrides: {} as Record<string, Partial<StrategyInfo>>,
   signalStatus: {} as Record<string, string>,
+  brokerConnected: false,
+  agentEnabled: true,
+  agentLog: null as AgentLogEntry[] | null,
 };
 
 // ---------------------------------------------------------------- strategies
@@ -755,7 +794,7 @@ function status(): StatusResponse {
   const closedToday = 2;
   return {
     mode: state.mode,
-    demo_mode: true,
+    demo_mode: !state.brokerConnected,
     market_open: true,
     broker: { connected: true, name: state.mode === 'paper' ? 'paper' : 'angel_one', logged_in: state.mode === 'live' },
     static_ip: { ok: true, public_ip: '203.0.113.24', expected: '203.0.113.24', message: 'Public IP matches registered static IP' },
@@ -763,6 +802,8 @@ function status(): StatusResponse {
     risk: { locked: state.locked, lock_reason: state.lockReason, daily_pnl: 2140, trades_today: closedToday + 1, max_trades: 5, daily_loss_used_pct: 22 },
     disclaimer_accepted: state.disclaimer,
     server_time: isoIST(Math.floor(now() / 1000)),
+    data_source: dataSource(),
+    data_sources: { NIFTY: dataSource(), BANKNIFTY: dataSource() },
   };
 }
 function settings(): SettingsResponse {
@@ -831,6 +872,102 @@ function eod(day?: string): EodReport {
   };
 }
 
+// ---------------------------------------------------------------- broker setup / agent (Iteration 2)
+const dataSource = () => (state.brokerConnected ? 'angel_one' : 'yahoo');
+const ANGEL_SECRETS = ['ANGEL_API_KEY', 'ANGEL_CLIENT_CODE', 'ANGEL_PIN', 'ANGEL_TOTP_SECRET'];
+function brokerSetup(): BrokerSetupResponse {
+  const configured = ANGEL_SECRETS.every((k) => state.secrets[k]);
+  return {
+    connected: state.brokerConnected,
+    configured,
+    data_source: dataSource(),
+    public_ip: '203.0.113.24',
+    static_ip: '203.0.113.24',
+    smartapi_fields: [
+      { field: 'App Name', value: 'IndexEdge', note: 'Any name you like' },
+      { field: 'Redirect URL', value: 'https://smartapi.angelone.in/', note: 'Must be https; never used by IndexEdge (PIN+TOTP login)' },
+      { field: 'Postback URL', value: '', note: 'Leave blank' },
+      { field: 'Primary Static IP', value: '203.0.113.24', note: 'Your current public IP — needed only for live orders' },
+      { field: 'Secondary Static IP', value: '', note: 'Optional — leave blank' },
+    ],
+    secrets: Object.fromEntries(ANGEL_SECRETS.map((k) => [k, !!state.secrets[k]])),
+    steps: [
+      { id: 'create_app', title: 'Create a SmartAPI app (Trading APIs)', done: !!state.secrets.ANGEL_API_KEY },
+      { id: 'totp', title: 'Enable TOTP and copy the key', done: !!state.secrets.ANGEL_TOTP_SECRET },
+      { id: 'secrets', title: 'Save the four secrets', done: configured },
+      { id: 'test', title: 'Test the connection', done: state.brokerConnected },
+      { id: 'connect', title: 'Switch to real-time data', done: state.brokerConnected },
+    ],
+  };
+}
+function brokerTest(): BrokerTestResponse {
+  const has = (k: string) => !!state.secrets[k];
+  const secretsOk = ANGEL_SECRETS.every(has);
+  const steps = [
+    { name: 'Secrets present', ok: secretsOk, detail: secretsOk ? 'All 4 Angel One secrets found in the OS keyring' : `Missing: ${ANGEL_SECRETS.filter((k) => !has(k)).join(', ')}` },
+    { name: 'TOTP clock', ok: has('ANGEL_TOTP_SECRET'), detail: has('ANGEL_TOTP_SECRET') ? 'System clock drift 0.4 s — TOTP codes valid' : 'No TOTP secret to check' },
+    { name: 'Login (PIN + TOTP)', ok: secretsOk, detail: secretsOk ? 'Session created for client A123456' : 'Skipped — secrets missing' },
+    { name: 'LTP NIFTY / BANKNIFTY', ok: secretsOk, detail: secretsOk ? `NIFTY ${ltp('NIFTY')} · BANKNIFTY ${ltp('BANKNIFTY')}` : 'Skipped' },
+    { name: '5m candles', ok: secretsOk, detail: secretsOk ? '375 bars received for the last 5 sessions' : 'Skipped' },
+    { name: 'Funds', ok: secretsOk, detail: secretsOk ? 'Available margin ₹2,04,310' : 'Skipped' },
+    { name: 'Static IP', ok: true, detail: 'Public IP 203.0.113.24 matches registered static IP (only needed for live orders)' },
+  ];
+  return { ok: steps.every((x) => x.ok), steps };
+}
+const AGENT_MSGS: Array<[AgentLogEntry['level'], string, string]> = [
+  ['info', 'eval', 'Evaluated 6 strategies on NIFTY 5m bar — no new setup'],
+  ['info', 'eval', 'BANKNIFTY: Squeeze still compressed (9 bars), waiting for release'],
+  ['warning', 'gate', 'ORB 15m NIFTY SELL blocked — news blackout: US CPI in 12 min'],
+  ['trade', 'entry', 'PAPER BUY 75 NIFTY20OCT2625200CE @ 142.50 · VWAP Pullback · SL 118 · T 167/191'],
+  ['info', 'manage', 'T9001 trailing stop moved to 131.00 (1R in profit)'],
+  ['info', 'eval', 'VWAP Pullback NIFTY: price 0.6 ATR from VWAP — too far, no entry'],
+  ['warning', 'risk', 'Max open positions reached (2/2) — new auto entries paused'],
+  ['error', 'broker', 'Order status poll timed out (retrying in 2 s)'],
+  ['trade', 'exit', 'PAPER EXIT NIFTY20OCT2625100CE @ 167.20 · target 1 hit · +1.0R (₹1,852)'],
+  ['info', 'data', 'Yahoo bar NIFTY 5m received (delay 74 s)'],
+];
+function agentLog(): AgentLogEntry[] {
+  if (state.agentLog) return state.agentLog;
+  const t = Math.floor(now() / 1000);
+  state.agentLog = Array.from({ length: 28 }, (_, i) => {
+    const [level, kind, message] = AGENT_MSGS[(i * 7) % AGENT_MSGS.length];
+    return { ts: isoIST(t - 60 - i * 137), level, kind, message };
+  });
+  return state.agentLog;
+}
+function agent(): AgentResponse {
+  const t = Math.floor(now() / 1000);
+  const strats = strategies();
+  const lastBar = Math.floor(t / 300) * 300;
+  const watching = strats.flatMap((s, i) =>
+    ['NIFTY', 'BANKNIFTY'].map((u, j) => {
+      const k = (i * 2 + j) % 7;
+      const st = !s.enabled ? 'disabled' : k === 0 ? 'signal' : k === 3 ? 'blocked' : 'no_setup';
+      const detail =
+        st === 'disabled'
+          ? 'Strategy disabled in Strategy Lab'
+          : st === 'signal'
+            ? `${j ? 'SELL' : 'BUY'} setup live — ${s.execution_mode === 'auto' && state.agentEnabled ? 'order placed (paper)' : 'awaiting confirmation'}`
+            : st === 'blocked'
+              ? 'Blocked: news blackout (US CPI 18:00 IST)'
+              : ['Waiting for pullback to VWAP', 'No breakout of opening range', 'ADX 17 < 20 — trend too weak', 'Price inside CPR, no rejection'][k % 4];
+      return {
+        strategy_id: s.id, name: s.name, underlying: u, enabled: s.enabled, execution_mode: s.execution_mode,
+        last_eval_ts: s.enabled ? isoIST(lastBar) : null, state: st, detail,
+      };
+    }),
+  );
+  return {
+    enabled: state.agentEnabled,
+    auto_strategies: strats.filter((s) => s.execution_mode === 'auto').map((s) => s.id),
+    data_source: dataSource(),
+    market_open: true,
+    next_bar_in_s: 300 - (t % 300),
+    watching,
+    log: agentLog(),
+  };
+}
+
 // ---------------------------------------------------------------- router
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -882,6 +1019,8 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
       case '/api/eod': return eod(q('day'));
       case '/api/settings': return settings();
       case '/api/health': return health();
+      case '/api/broker/setup': return brokerSetup();
+      case '/api/agent': return agent();
     }
     if ((m = p.match(/^\/api\/trades\/([^/]+)$/))) {
       const t = trades().find((x) => x.id === decodeURIComponent(m![1]));
@@ -948,6 +1087,25 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
         }
         return { ok: true };
       case '/api/login': return { ok: true, message: 'Mock login successful' };
+      case '/api/broker/test':
+        await delay(900);
+        return brokerTest();
+      case '/api/broker/connect': {
+        await delay(600);
+        const r = brokerTest();
+        if (!r.ok) return { ok: false, message: 'Cannot connect — fix the failed checks first', steps: r.steps };
+        state.brokerConnected = true;
+        return { ok: true, message: 'Switched to Angel One real-time data', steps: r.steps };
+      }
+      case '/api/agent':
+        state.agentEnabled = Boolean(b.enabled);
+        agentLog().unshift({ ts: isoIST(Math.floor(now() / 1000)), level: 'warning', kind: 'switch', message: `Agent switched ${state.agentEnabled ? 'ON' : 'OFF'} by user` });
+        return { ok: true };
+      case '/api/agent/auto-all': {
+        const en = strategies().filter((s) => s.enabled);
+        en.forEach((s) => (state.strategyOverrides[s.id] = { ...state.strategyOverrides[s.id], execution_mode: 'auto' }));
+        return { ok: true, message: `${en.length} strategies set to Auto` };
+      }
     }
   }
   throw new Error(`mock: no handler for ${method} ${p}`);
@@ -969,6 +1127,13 @@ export function mockTick(): WsMessage[] {
     last.volume += Math.round(r() * 2000);
     out.push({ type: 'tick', data: { underlying: u, ltp: px, ts: isoIST(Math.floor(now() / 1000)) } });
     out.push({ type: 'candle', data: { ...last, underlying: u, tf: '5m' } });
+  }
+  if (tickN % 6 === 0) {
+    const [level, kind, message] = AGENT_MSGS[(tickN / 6) % AGENT_MSGS.length];
+    const e = { ts: isoIST(Math.floor(now() / 1000)), level, kind, message };
+    agentLog().unshift(e);
+    agentLog().splice(300);
+    out.push({ type: 'agent', data: e });
   }
   if (tickN % 5 === 0) out.push({ type: 'health', data: { last_tick_age_s: 0.5, latency_ms: 30 + (tickN % 20) } });
   return out;

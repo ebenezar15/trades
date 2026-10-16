@@ -49,8 +49,9 @@ def test_option_chain_has_atm(client):
 
 
 def test_strategies_listed_with_learn(client):
+    from indexedge.strategies import registry
     d = client.get("/api/strategies").json()["strategies"]
-    assert len(d) == 13 and all(s["learn"] for s in d)
+    assert len(d) == len(registry.STRATEGY_IDS) and all(s["learn"] for s in d)
 
 
 def test_backtest_endpoint_labels_synthetic(client):

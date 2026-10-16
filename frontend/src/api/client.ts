@@ -1,6 +1,10 @@
 // Typed REST client for the IndexEdge backend. All paths are relative (/api/...), so the same build works
 // when served by the backend and via the Vite dev proxy. With VITE_MOCK=1 every call is answered by ./mock.
 import type {
+  AgentResponse,
+  BrokerConnectResponse,
+  BrokerSetupResponse,
+  BrokerTestResponse,
   AnalyticsResponse,
   BacktestRequest,
   BacktestResponse,
@@ -134,6 +138,14 @@ export const api = {
   login: () => post<OkResponse>('/api/login'),
 
   health: () => get<HealthResponse>('/api/health'),
+
+  brokerSetup: () => get<BrokerSetupResponse>('/api/broker/setup'),
+  brokerTest: () => post<BrokerTestResponse>('/api/broker/test'),
+  brokerConnect: () => post<BrokerConnectResponse>('/api/broker/connect'),
+
+  agent: () => get<AgentResponse>('/api/agent'),
+  setAgent: (enabled: boolean) => post<OkResponse>('/api/agent', { enabled }),
+  agentAutoAll: () => post<OkResponse>('/api/agent/auto-all'),
 };
 
 export type Api = typeof api;

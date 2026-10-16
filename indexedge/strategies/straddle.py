@@ -103,7 +103,8 @@ class _PremiumStrategy(Strategy):
 LEARN_920 = """\
 ### 9:20 Short Straddle (paper-only / approximate backtest)
 
-**What it is.** At 09:20 sell the at-the-money call and put of the current Nifty weekly expiry. Each leg has its
+**What it is.** At 09:20 sell the at-the-money call and put of the current Nifty weekly expiry. Each leg
+has its
 own stop-loss at +25% of its entry premium. If one leg is stopped, the other leg's stop moves to its entry
 price. Everything is closed at 15:15.
 
@@ -131,11 +132,13 @@ LEARN_EXPIRY = """\
 **Why it can work.** Expiring options lose their remaining time value within hours; if Nifty stays near the
 strike the fly expires close to maximum profit.
 
-**When it fails.** Gamma risk is extreme on expiry day: a 0.5–1% move can turn a winner into a full loss within
+**When it fails.** Gamma risk is extreme on expiry day: a 0.5–1% move can turn a winner into a full loss
+within
 minutes. Event days and trend days hurt most.
 
 **Rules (defaults).** Expiry days only (NSE calendar; default Tuesdays). Entry 10:00. Wings at ±1.0× the
-combined straddle premium. Stop when the fly's value rises 25% above the entry credit, **or** spot moves beyond
+combined straddle premium. Stop when the fly's value rises 25% above the entry credit, **or** spot moves
+beyond
 strike ± 0.8 × the entry straddle premium. Once +30% in profit, trail the stop to lock +10%. Exit 15:15.
 
 **Backtest quality: approximate.** Premiums are modelled (see the 9:20 straddle). Disabled unless expiry
@@ -158,7 +161,9 @@ class Straddle920(_PremiumStrategy):
     }
     learn = LEARN_920
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         c = bv["close"]
@@ -180,14 +185,18 @@ class Straddle920(_PremiumStrategy):
             reasons = [
                 (f"{p['entry_time']} entry: sell {fmt(k, 0)} CE + PE (expiry {exp.isoformat()},"
                 f" {(exp - d).days} day(s) away)"),
-                f"Modelled premiums CE {fmt(ce)} + PE {fmt(pe)} = {fmt(ce + pe)} (IV {iv * 100:.0f}%, approximate)",
-                f"Per-leg stop at +{p['leg_sl_pct']:.0f}% premium ≈ spot {fmt(spot - band)} / {fmt(spot + band)}",
+                (f"Modelled premiums CE {fmt(ce)} + PE {fmt(pe)} = {fmt(ce + pe)} (IV {iv * 100:.0f}%,"
+                f" approximate)"),
+                (f"Per-leg stop at +{p['leg_sl_pct']:.0f}% premium ≈ spot {fmt(spot - band)} /"
+                f" {fmt(spot + band)}"),
                 "Paper-only: approximate premium model, not real option prices",
             ]
             out.append(self._signal(bv, i, underlying, Side.SELL, spot, spot + band, [], reasons))
         return out
 
-    def simulate(self, signal: StrategySignal, bars: pd.DataFrame, max_bars: int = 75) -> PremiumOutcome | None:
+    def simulate(
+        self, signal: StrategySignal, bars: pd.DataFrame, max_bars: int = 75
+    ) -> PremiumOutcome | None:
         if bars is None or bars.empty:
             return None
         p = self.params
@@ -265,7 +274,9 @@ class ExpiryStraddle(_PremiumStrategy):
         _, wp = leg_values(s, k - w, tv)
         return float(ce + pe - wc - wp)
 
-    def _setup(self, spot: float, at: datetime, underlying: str, iv: float) -> tuple[float, float, float, float]:
+    def _setup(
+        self, spot: float, at: datetime, underlying: str, iv: float
+    ) -> tuple[float, float, float, float]:
         k = self._strike(spot, underlying)
         exp = self._expiry_for(at.date())
         tv = atm_tv(spot, iv, time_to_expiry(at, exp))
@@ -274,7 +285,9 @@ class ExpiryStraddle(_PremiumStrategy):
         w = max(step, round(self.params["wing_mult"] * (ce + pe) / step) * step)
         return k, float(ce + pe), w, tv
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         p = self.params
         bv = BarView(feat)
         c = bv["close"]
@@ -296,7 +309,8 @@ class ExpiryStraddle(_PremiumStrategy):
             reasons = [
                 (f"Expiry day ({d.isoformat()}): sell {fmt(k, 0)} CE + PE at {p['entry_time']},"
                 f" buy wings {fmt(k - w, 0)} PE / {fmt(k + w, 0)} CE"),
-                (f"Modelled straddle premium {fmt(straddle)}, iron-fly credit {fmt(credit)} (IV {iv * 100:.0f}%,"
+                (f"Modelled straddle premium {fmt(straddle)}, iron-fly credit {fmt(credit)} (IV"
+                 f" {iv * 100:.0f}%,"
                 " approximate)"),
                 (f"Stop if the fly costs +{p['sl_pct']:.0f}% more than the credit or spot leaves"
                 f" {fmt(k - band)}–{fmt(k + band)}"),
@@ -305,7 +319,9 @@ class ExpiryStraddle(_PremiumStrategy):
             out.append(self._signal(bv, i, underlying, Side.SELL, spot, k + band, [], reasons))
         return out
 
-    def simulate(self, signal: StrategySignal, bars: pd.DataFrame, max_bars: int = 75) -> PremiumOutcome | None:
+    def simulate(
+        self, signal: StrategySignal, bars: pd.DataFrame, max_bars: int = 75
+    ) -> PremiumOutcome | None:
         if bars is None or bars.empty:
             return None
         p = self.params
@@ -349,7 +365,8 @@ class ExpiryStraddle(_PremiumStrategy):
     def _finish(self, signal, bars, ts, credit, val, outcome, mfe, mae, n, spot, wing0) -> PremiumOutcome:
         pts = credit - val
         risk = credit * self.params["sl_pct"] / 100.0
-        # legs for charges (approximation): two short ATM legs, two long wings bought at entry and assumed to be
+        # legs for charges (approximation): two short ATM legs, two long wings bought at entry and assumed
+        # to be
         # sold back near zero (expiry day)
         wing = wing0 / 2
         short = (credit + 2 * wing) / 2

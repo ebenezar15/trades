@@ -29,8 +29,9 @@ export interface StatusResponse {
   disclaimer_accepted: boolean;
   server_time: string;
   /** (ext) */
-  data_source?: 'synthetic' | 'broker' | string;
-  data_sources?: Record<string, string>;
+  data_source?: DataSource;
+  /** per-underlying data source */
+  data_sources?: Record<string, DataSource>;
   configured_mode?: TradingMode;
   execution_broker?: string;
   safe_mode?: { active: boolean; reason: string };
@@ -63,6 +64,26 @@ export interface KeyLevels {
   or_high?: number | null;
   or_low?: number | null;
 }
+/** Signal annotation on the candle chart (Iteration 2). */
+export interface CandleMarker {
+  time: number; // unix seconds
+  position: 'aboveBar' | 'belowBar';
+  shape: 'arrowUp' | 'arrowDown';
+  color: string;
+  text: string;
+  signal_id: string;
+  status: SignalStatus;
+}
+/** Open trade levels, in underlying price terms (Iteration 2). */
+export interface TradeLine {
+  trade_id: string;
+  side: Side;
+  entry: number;
+  stop: number;
+  targets: number[];
+  status: string;
+  label: string;
+}
 export interface CandlesResponse {
   candles: Candle[];
   overlays: {
@@ -72,6 +93,8 @@ export interface CandlesResponse {
     supertrend: SupertrendPoint[];
   };
   levels: KeyLevels;
+  markers?: CandleMarker[];
+  trade_lines?: TradeLine[];
 }
 
 // ---------------------------------------------------------------- overview
@@ -543,8 +566,75 @@ export interface OkResponse {
   [k: string]: unknown;
 }
 
+// ---------------------------------------------------------------- broker setup (Iteration 2)
+/** angel_one = real-time · yahoo = delayed ~1–2 min, no index volume · synthetic = demo data */
+export type DataSource = 'angel_one' | 'yahoo' | 'synthetic' | string;
+export interface SmartApiField {
+  field: string;
+  value: string;
+  note: string;
+}
+export interface BrokerSetupStep {
+  id: string;
+  title: string;
+  done: boolean;
+}
+export interface BrokerSetupResponse {
+  connected: boolean;
+  configured: boolean;
+  data_source: DataSource;
+  public_ip: string | null;
+  static_ip: string | null;
+  smartapi_fields: SmartApiField[];
+  secrets: Record<string, boolean>;
+  steps: BrokerSetupStep[];
+}
+export interface BrokerTestStep {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+export interface BrokerTestResponse {
+  ok: boolean;
+  steps: BrokerTestStep[];
+}
+export interface BrokerConnectResponse {
+  ok: boolean;
+  message: string;
+  steps?: BrokerTestStep[];
+}
+
+// ---------------------------------------------------------------- agent (Iteration 2)
+export type AgentWatchState = 'signal' | 'no_setup' | 'blocked' | 'disabled' | string;
+export interface AgentWatch {
+  strategy_id: string;
+  name: string;
+  underlying: Underlying;
+  enabled: boolean;
+  execution_mode: ExecutionMode;
+  last_eval_ts: string | null;
+  state: AgentWatchState;
+  detail: string;
+}
+export type AgentLogLevel = 'info' | 'warning' | 'error' | 'trade' | string;
+export interface AgentLogEntry {
+  ts: string;
+  level: AgentLogLevel;
+  kind: string;
+  message: string;
+}
+export interface AgentResponse {
+  enabled: boolean;
+  auto_strategies: string[];
+  data_source: DataSource;
+  market_open: boolean;
+  next_bar_in_s: number | null;
+  watching: AgentWatch[];
+  log: AgentLogEntry[];
+}
+
 // ---------------------------------------------------------------- websocket
-export type WsType = 'tick' | 'candle' | 'signal' | 'context' | 'news' | 'order' | 'trade' | 'health' | 'alert';
+export type WsType = 'tick' | 'candle' | 'signal' | 'context' | 'news' | 'order' | 'trade' | 'health' | 'alert' | 'agent';
 export interface TickData {
   underlying?: string;
   symbol?: string;
@@ -570,4 +660,5 @@ export type WsMessage =
   | { type: 'order'; data: Record<string, unknown> }
   | { type: 'trade'; data: TradeRow }
   | { type: 'health'; data: Partial<HealthResponse> }
-  | { type: 'alert'; data: AlertData };
+  | { type: 'alert'; data: AlertData }
+  | { type: 'agent'; data: AgentLogEntry };

@@ -4,12 +4,16 @@ from __future__ import annotations
 from typing import Any
 
 from indexedge.strategies.base import Strategy
+from indexedge.strategies.bollinger_reversion import BollingerReversion
+from indexedge.strategies.breakout_retest import BreakoutRetest
 from indexedge.strategies.cpr import CprPivot, CprVwap
 from indexedge.strategies.divergence import RsiDivergence
 from indexedge.strategies.gap import GapFill
 from indexedge.strategies.inside_bar import InsideBarBreakout
+from indexedge.strategies.macd_trend import MacdTrend
 from indexedge.strategies.oi_pcr import OiPcr
 from indexedge.strategies.orb import ORB15
+from indexedge.strategies.pullbacks import EmaPullback, FibPullback, SupertrendPullback
 from indexedge.strategies.squeeze import SqueezeBreakout
 from indexedge.strategies.straddle import ExpiryStraddle, Straddle920
 from indexedge.strategies.trend import EmaSupertrendAdx, TripleSupertrend
@@ -18,7 +22,8 @@ from indexedge.strategies.vwap_pullback import VWAPPullback
 STRATEGY_CLASSES: dict[str, type[Strategy]] = {
     cls.id: cls
     for cls in (ORB15, VWAPPullback, EmaSupertrendAdx, TripleSupertrend, CprPivot, CprVwap, SqueezeBreakout,
-                RsiDivergence, OiPcr, Straddle920, ExpiryStraddle, GapFill, InsideBarBreakout)
+                RsiDivergence, OiPcr, Straddle920, ExpiryStraddle, GapFill, InsideBarBreakout,
+                EmaPullback, FibPullback, SupertrendPullback, BreakoutRetest, BollingerReversion, MacdTrend)
 }
 
 STRATEGY_IDS: list[str] = list(STRATEGY_CLASSES)

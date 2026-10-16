@@ -45,7 +45,10 @@ direction. Stop 0.6×ATR(14) beyond VWAP. Target = nearest OI wall in the trade 
 class OiPcr(Strategy):
     id = "oi_pcr"
     name = "OI / PCR Bias"
-    description = "Contrarian PCR extremes (or fast PCR shifts) confirmed by a VWAP cross; OI walls as targets."
+    description = (
+        "Contrarian PCR extremes (or fast PCR shifts) confirmed by a VWAP cross; OI walls as"
+        " targets."
+    )
     instrument_hint = "option"
     backtest_quality = "approximate"
     required_columns = ("open", "high", "low", "close", "atr14", "vwap")
@@ -79,7 +82,9 @@ class OiPcr(Strategy):
                 dpcr[mask] = float(extra["pcr_change_30m"])
         return pcr, dpcr
 
-    def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
+    def _scan(
+        self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None
+    ) -> list[StrategySignal]:
         if not extra or (extra.get("pcr") is None and extra.get("pcr_series") is None):
             self.last_skip_reason = "no option-chain / OI data (PCR) supplied"
             return []
@@ -98,9 +103,11 @@ class OiPcr(Strategy):
                     continue
                 bias, why = None, ""
                 if pcr[i] >= p["pcr_bull"]:
-                    bias, why = Side.BUY, f"PCR {pcr[i]:.2f} ≥ {p['pcr_bull']} (contrarian: puts crowded → long bias)"
+                    bias = Side.BUY
+                    why = f"PCR {pcr[i]:.2f} ≥ {p['pcr_bull']} (contrarian: puts crowded → long bias)"
                 elif pcr[i] <= p["pcr_bear"]:
-                    bias, why = Side.SELL, f"PCR {pcr[i]:.2f} ≤ {p['pcr_bear']} (contrarian: calls crowded → short bias)"
+                    bias = Side.SELL
+                    why = f"PCR {pcr[i]:.2f} ≤ {p['pcr_bear']} (contrarian: calls crowded → short bias)"
                 elif np.isfinite(dpcr[i]) and abs(dpcr[i]) >= p["pcr_shift"]:
                     bias = Side.BUY if dpcr[i] > 0 else Side.SELL
                     why = f"PCR moved {dpcr[i]:+.2f} in 30 min (momentum mode)"

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Candle, IndexOverview, Position, TradeRow } from '../api/types';
@@ -65,7 +65,8 @@ function Positions({ positions, trades }: { positions: Position[]; trades: Trade
 export default function Dashboard() {
   const { status } = useApp();
   const [u, setU] = useState('NIFTY');
-  const [show, setShow] = useState({ ema: true, vwap: true, supertrend: true, levels: true });
+  const [show, setShow] = useState({ ema: true, vwap: true, supertrend: true, levels: true, signals: true });
+  const agent = useApi(api.agent, [], 30000);
   const overview = useApi(api.overview, [], 15000);
   const candles = useApi(() => api.candles(u, '5m', 500), [u], 60000);
   const ctx = useApi(api.context, [], 60000);
@@ -73,6 +74,21 @@ export default function Dashboard() {
   const positions = useApi(api.positions, [], 3000);
   const [live, setLive] = useState<Record<string, Candle>>({});
   const [ltps, setLtps] = useState<Record<string, number>>({});
+  // debounced candle refetch so new signal markers / trade lines appear promptly
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleCandleRefetch = () => {
+    if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    refetchTimer.current = setTimeout(() => {
+      refetchTimer.current = null;
+      void candles.reload();
+    }, 1500);
+  };
+  useEffect(
+    () => () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    },
+    [u],
+  );
 
   useWsMessages(
     (m) => {
@@ -92,6 +108,7 @@ export default function Dashboard() {
       if (m.type === 'signal') void signals.reload();
       if (m.type === 'context') ctx.setData(m.data);
       if (m.type === 'trade' || m.type === 'order') void positions.reload();
+      if ((m.type === 'signal' || m.type === 'trade') && m.data.underlying === u) scheduleCandleRefetch();
     },
     ['tick', 'candle', 'signal', 'context', 'trade', 'order'],
   );
@@ -115,14 +132,27 @@ export default function Dashboard() {
       {overview.error && !overview.data && <ErrorBox error={overview.error} onRetry={overview.reload} />}
 
       {/* chips */}
-      {ix && (
+      {(ix || agent.data) && (
         <div className="flex flex-wrap gap-1.5">
+          {agent.data && (
+            <Link to="/agent" title="Open the Agent page">
+              <Chip tone={agent.data.enabled ? 'up' : 'down'}>
+                <span className={cls('h-1.5 w-1.5 rounded-full', agent.data.enabled ? 'bg-up' : 'bg-down')} />
+                Agent {agent.data.enabled ? 'ON' : 'OFF'}
+                {agent.data.enabled && agent.data.auto_strategies.length > 0 && ` · ${agent.data.auto_strategies.length} auto`} →
+              </Chip>
+            </Link>
+          )}
+          {ix && (
+            <>
           <Chip tone={REGIME_TONE[ix.regime] ?? 'neutral'}>Regime: {titleCase(ix.regime)}</Chip>
           {ix.vix != null && <Chip tone={ix.vix >= 22 ? 'down' : ix.vix >= 17 ? 'warn' : 'neutral'}>VIX {fmt(ix.vix, 2)}</Chip>}
           {ix.pcr != null && <Chip tone={ix.pcr > 1.2 ? 'up' : ix.pcr < 0.8 ? 'down' : 'neutral'}>PCR {fmt(ix.pcr, 2)}</Chip>}
           {ix.max_pain != null && <Chip>Max pain {fmt(ix.max_pain, 0)}</Chip>}
           {ctx.data?.risk_off && <Chip tone="down">RISK-OFF</Chip>}
           {ctx.data && !ctx.data.usable && <Chip tone="warn">Context stale — signals paused</Chip>}
+            </>
+          )}
         </div>
       )}
 
@@ -132,13 +162,13 @@ export default function Dashboard() {
           title={`${u} · 5m`}
           right={
             <div className="flex flex-wrap gap-1">
-              {(['ema', 'vwap', 'supertrend', 'levels'] as const).map((k) => (
+              {(['ema', 'vwap', 'supertrend', 'levels', 'signals'] as const).map((k) => (
                 <button
                   key={k}
                   onClick={() => setShow((s) => ({ ...s, [k]: !s[k] }))}
                   className={cls('rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase', show[k] ? 'bg-accent/15 text-accent' : 'text-muted')}
                 >
-                  {k === 'supertrend' ? 'ST' : k === 'ema' ? 'EMA' : k}
+                  {k === 'supertrend' ? 'ST' : k === 'ema' ? 'EMA' : k === 'signals' ? 'Signals' : k}
                 </button>
               ))}
             </div>
@@ -149,6 +179,8 @@ export default function Dashboard() {
             candles={candles.data?.candles ?? []}
             overlays={candles.data?.overlays}
             levels={candles.data?.levels}
+            signalMarkers={candles.data?.markers}
+            tradeLines={candles.data?.trade_lines}
             show={show}
             live={live[u]}
             fitKey={u}
@@ -160,6 +192,12 @@ export default function Dashboard() {
             <span><span className="text-[#38bdf8]">┅</span> VWAP</span>
             <span><span className="text-up">━</span>/<span className="text-down">━</span> Supertrend</span>
             <span>Levels: P/BC/TC · R1/S1 · PDH/PDL · ORH/ORL</span>
+            {show.signals && (
+              <span>
+                <span className="text-up">▲</span>/<span className="text-down">▼</span> Signals · <span className="text-[#3b82f6]">━</span> Entry ·{' '}
+                <span className="text-down">┅</span> SL · <span className="text-up">┅</span> Targets
+              </span>
+            )}
           </div>
         </Card>
 
