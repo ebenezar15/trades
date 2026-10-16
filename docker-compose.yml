@@ -1,0 +1,12 @@
+# Optional VPS deployment. The VPS public IP must be the static IP registered on your SmartAPI app.
+services:
+  indexedge:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # put a reverse proxy with auth (or Tailscale) in front; never expose publicly
+    env_file: .env
+    environment:
+      - INDEXEDGE_APP__DEMO_MODE=false
+    volumes:
+      - ./data:/app/data
