@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 244 246 250;
+  --panel: 255 255 255;
+  --panel2: 238 241 246;
+  --line: 218 223 232;
+  --fg: 17 24 39;
+  --muted: 100 112 132;
+  --up: 22 163 74;
+  --down: 220 38 38;
+  --accent: 2 132 199;
+  --warn: 217 119 6;
+  color-scheme: light;
+}
+.dark {
+  --bg: 11 18 32;
+  --panel: 17 25 42;
+  --panel2: 24 34 55;
+  --line: 38 50 74;
+  --fg: 226 232 240;
+  --muted: 140 153 175;
+  --up: 34 197 94;
+  --down: 239 68 68;
+  --accent: 56 189 248;
+  --warn: 245 158 11;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  @apply bg-bg text-fg antialiased;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-panel p-3 sm:p-4;
+  }
+  .card-title {
+    @apply mb-2 flex items-center justify-between gap-2 text-sm font-semibold uppercase tracking-wide text-muted;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-panel2 px-3 py-1.5 text-sm font-medium
+      transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-accent/60 bg-accent text-white dark:text-slate-900;
+  }
+  .btn-danger {
+    @apply border-down/70 bg-down text-white;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-panel2 px-2.5 py-1.5 text-sm outline-none focus:border-accent disabled:opacity-60;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-muted;
+  }
+  .tbl {
+    @apply w-full border-collapse text-sm;
+  }
+  .tbl th {
+    @apply whitespace-nowrap border-b border-line px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+  .tbl td {
+    @apply whitespace-nowrap border-b border-line/60 px-2 py-1.5;
+  }
+  .num {
+    @apply text-right font-mono tabular-nums;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-line bg-panel2 px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.prose-md h1,
+.prose-md h2,
+.prose-md h3 {
+  @apply mb-2 mt-4 font-semibold;
+}
+.prose-md h2 {
+  @apply text-lg;
+}
+.prose-md p,
+.prose-md ul,
+.prose-md ol,
+.prose-md blockquote {
+  @apply mb-3 leading-relaxed;
+}
+.prose-md ul {
+  @apply list-disc pl-5;
+}
+.prose-md ol {
+  @apply list-decimal pl-5;
+}
+.prose-md blockquote {
+  @apply border-l-4 border-accent/60 pl-3 text-muted;
+}
+.prose-md code {
+  @apply rounded bg-panel2 px-1 font-mono text-[0.9em];
+}
+.prose-md a {
+  @apply text-accent underline;
+}
