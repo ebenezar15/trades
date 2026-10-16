@@ -21,8 +21,21 @@ with F&O enabled.
 ## 2. Create your SmartAPI app (Angel One)
 
 1. Sign in at <https://smartapi.angelone.in> with your Angel One client code.
-2. *Create an App* → type **Trading APIs**. Enter any redirect URL (e.g. `http://localhost`).
-   In the **Primary static IP** field enter your static IP (step 4). Save and copy the **API key**.
+2. *Create an App* → type **Trading APIs** and fill the form exactly like this:
+
+   | SmartAPI field | What to type |
+   |---|---|
+   | App name | `IndexEdge` (any name) |
+   | Redirect URL | `https://smartapi.angelone.in/` |
+   | Postback URL | leave empty |
+   | Primary static IP | your PC's public IPv4 (IndexEdge shows it in **Settings → Connect Angel One**) |
+
+   > **Why not `localhost:8000`?** Angel One only accepts a secure `https://` web address as Redirect URL —
+   > `localhost`, `http://` and IP addresses are rejected. IndexEdge logs in with your PIN + TOTP and never uses the
+   > redirect URL, so Angel One's own site is a safe value.
+
+   Save and copy the **API key**. (The in-app wizard **Settings → Connect Angel One** shows these values with copy
+   buttons.)
 3. Enable TOTP: on the SmartAPI site choose *Enable TOTP*, sign in, and you will see a QR code **and a text key**.
    Scan the QR with Google Authenticator if you like, but **also copy the text key** — that is the
    "TOTP secret" IndexEdge needs to log in for you each morning.
@@ -38,8 +51,13 @@ Either answer the installer's wizard, or later in the app: **Settings → Broker
 | PIN | your Angel One login PIN |
 | TOTP secret | the text key from step 2.3 |
 
-Secrets are stored in **Windows Credential Manager** (never in files or logs). Restart IndexEdge after entering
-them; it will then log in automatically at 08:30 every trading day (or press **Login for today** in Settings).
+Secrets are stored in **Windows Credential Manager** (never in files or logs). Then press **Test connection**
+in **Settings → Connect Angel One**: it checks each step (secrets, PC clock, login, live Nifty/Bank Nifty prices,
+candles, funds, static IP) and tells you exactly what to fix. Press **Connect now** to switch to Angel One's
+real-time feed — no restart needed. From then on IndexEdge logs in automatically at 08:30 every trading day.
+
+**Market data does not need the static IP** — only placing live orders does. You can connect and get real-time
+data today, and add the static IP before you go live.
 
 ## 4. Static IP (required only for live orders)
 

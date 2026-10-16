@@ -23,6 +23,10 @@ def _setup() -> None:
 
     s = load_settings()
     print("IndexEdge setup. Press Enter to keep the current value / skip.\n")
+    print("Creating your SmartAPI app at https://smartapi.angelone.in -> Create App -> 'Trading APIs':")
+    print("  Redirect URL : https://smartapi.angelone.in/   (Angel One rejects localhost; IndexEdge never uses it)")
+    print("  Postback URL : leave empty")
+    print("  Static IP    : your public IPv4 (only needed for live orders)\n")
     status = secrets_status()
     prompts = {
         "ANGEL_API_KEY": "SmartAPI API key",

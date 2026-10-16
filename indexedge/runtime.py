@@ -87,6 +87,9 @@ class Runtime:
         self.scheduler = None
         self.angel = None
         self.limiter = RateLimiter(s.execution.max_orders_per_second)
+        from indexedge.services.agent import AgentLog
+
+        self.agent = AgentLog(self.bus, self.clock)
 
     # ================================================================== construction
     async def start(self) -> None:
@@ -145,6 +148,10 @@ class Runtime:
             self._tasks.append(asyncio.create_task(self._initial_jobs()))
         log.info("IndexEdge started (demo=%s, mode=%s, data=%s)", self.demo, s.execution.mode.value,
                  self.market.data_source)
+        feed_txt = {"angel_one": "Angel One real-time feed", "yahoo": "Yahoo Finance (real prices, may be delayed "
+                    "1–2 min)", "synthetic": "synthetic demo prices"}.get(self.market.feed, self.market.feed)
+        await self.agent.log("start", f"Started in {s.execution.mode.value.upper()} mode using {feed_txt}. "
+                             f"Agent is {'ON' if self.agent_enabled else 'OFF'}.")
 
     async def _load_master(self) -> InstrumentMaster:
         path = self.data_dir / "OpenAPIScripMaster.json"
@@ -196,16 +203,34 @@ class Runtime:
                                          s.notify.telegram_chat_id if s.notify.telegram_enabled else "")
         # models live in a separate folder and are only ever trained on real broker data
         self.registry = ModelRegistry(self.data_dir / "models_real")
-        self.risk = RiskEngine(s.risk, self.clock, self.journal, cutoff=s.broker.intraday_cutoff)
+        self.risk = RiskEngine(self._risk_settings(), self.clock, self.journal, cutoff=s.broker.intraday_cutoff)
         self.strategies = all_strategies(s.strategies.params)
         self._apply_expiry_dates()
-        self.lab = StrategyLab(s, store=self.store, lot_sizes=self._lot_sizes())
+        self.lab = StrategyLab(s, store=self.store, lot_sizes=self._lot_sizes(), data_provider=self._real_frames)
         self.composer = SignalComposer(self._effective_settings(), self.registry, self.risk, self.calendar,
                                        self.master, strategies=self.strategies)
 
         from indexedge.services.signal_engine import SignalEngine
 
         self.signals = SignalEngine(self)
+
+    def _real_frames(self, underlying: str, days: int):
+        """Real candles (Angel One or Yahoo) for validation; None when only synthetic data exists."""
+        if self.market.sources.get(underlying) in ("yahoo", "broker"):
+            return self.market.frame(underlying)
+        return None
+
+    def _risk_settings(self):
+        """Risk limits; the Yahoo feed updates every ~20 s, so its stale-data allowance is widened accordingly."""
+        if self.market.feed == "yahoo":
+            return self.settings.risk.model_copy(update={"stale_feed_seconds": max(
+                self.settings.risk.stale_feed_seconds, 75)})
+        return self.settings.risk
+
+    def apply_settings(self) -> None:
+        """Push edited settings into live components."""
+        self.risk.settings = self._risk_settings()
+        self.refresh_composer_settings()
 
     def _lot_sizes(self) -> dict[str, int]:
         out = {}
@@ -250,6 +275,8 @@ class Runtime:
 
     def _wire_bus(self) -> None:
         self.bus.subscribe(topics.CANDLE, self.signals.on_candle)
+        self.bus.subscribe(topics.TRADE, self._agent_trade)
+        self.bus.subscribe(topics.ORDER, self._agent_order)
         self.bus.subscribe(topics.ALERT, self._on_alert)
         self.bus.subscribe(topics.NEWS, self._on_news)
 
@@ -294,9 +321,40 @@ class Runtime:
                 return False
         return True
 
-    def execution_mode(self, sid: str) -> ExecutionMode:
+    def configured_execution_mode(self, sid: str) -> ExecutionMode:
         m = self.settings.strategies.execution_mode.get(sid)
         return ExecutionMode(m) if m else self.settings.execution.default_execution_mode
+
+    def execution_mode(self, sid: str) -> ExecutionMode:
+        """Effective mode: Auto only acts while the agent master switch is ON."""
+        m = self.configured_execution_mode(sid)
+        if m is ExecutionMode.AUTO and not self.agent_enabled:
+            return ExecutionMode.SIGNAL_ONLY
+        return m
+
+    @property
+    def agent_enabled(self) -> bool:
+        return bool(self.journal.get_setting("agent_enabled", False))
+
+    async def set_agent(self, enabled: bool) -> dict:
+        self.journal.set_setting("agent_enabled", bool(enabled))
+        self.journal.audit_setting("agent_enabled", not enabled, bool(enabled))
+        autos = [sid for sid in self.strategies if self.configured_execution_mode(sid) is ExecutionMode.AUTO]
+        await self.agent.log("control", f"Agent switched {'ON' if enabled else 'OFF'} — "
+                             f"{len(autos)} strategy(ies) in Auto mode"
+                             + ("" if autos or not enabled else " (set some strategies to Auto to let it trade)"),
+                             "warning")
+        return {"ok": True, "enabled": bool(enabled), "auto_strategies": autos}
+
+    async def set_all_auto(self) -> dict:
+        changed = []
+        for sid in self.strategies:
+            if self.strategy_enabled(sid):
+                self.settings.strategies.execution_mode[sid] = ExecutionMode.AUTO
+                changed.append(sid)
+        self.settings.save_user()
+        await self.agent.log("control", f"Set {len(changed)} enabled strategies to Auto: {', '.join(changed) or 'none'}")
+        return {"ok": True, "changed": changed}
 
     # ================================================================== reports (strategy validation)
     def _reports_path(self) -> Path:
@@ -450,7 +508,26 @@ class Runtime:
         elif action == "skip":
             await self.skip_signal(sid)
 
+    async def _agent_trade(self, payload: Any) -> None:
+        d = payload.to_dict() if hasattr(payload, "to_dict") else dict(payload or {})
+        status = d.get("status") or d.get("event") or "update"
+        pnl = d.get("pnl")
+        await self.agent.log("trade", f"Trade {d.get('id', '')[:10]} {d.get('strategy_id', '')} "
+                             f"{d.get('instrument_symbol', '')}: {status}"
+                             + (f", P&L ₹{pnl:,.0f}" if isinstance(pnl, (int, float)) else ""), "trade")
+
+    async def _agent_order(self, order: Any) -> None:
+        try:
+            r = order.request
+            await self.agent.log("order", f"{r.order_type.value} {r.side.value} {r.quantity} {r.instrument.symbol} "
+                                 f"@ {r.price:,.2f}{f' trg {r.trigger_price:,.2f}' if r.trigger_price else ''} → "
+                                 f"{order.status.value}{f' ({order.message})' if order.message else ''}")
+        except Exception:
+            pass
+
     async def _on_alert(self, payload: dict) -> None:
+        await self.agent.log("alert", f"{payload.get('title')}: {payload.get('message') or payload.get('body') or ''}",
+                             "error" if payload.get("level") in ("error", "critical") else "warning")
         await self.notify(f"⚠️ {payload.get('title')}\n{payload.get('message') or payload.get('body') or ''}")
 
     async def _on_news(self, item: Any) -> None:
@@ -479,7 +556,9 @@ class Runtime:
     async def _initial_jobs(self) -> None:
         await self.check_ip()
         await self.context.refresh()
-        if not self.reports:
+        stale_synthetic = (self.report_meta.get("data_source") == "synthetic"
+                           and self.market.data_source != "synthetic")
+        if not self.reports or stale_synthetic:
             await self.refresh_reports()
         if self.trades.open_trades or not self.market.demo:
             await self.reconcile()
@@ -512,7 +591,7 @@ class Runtime:
             res = await self.trades.reconcile(self.master)
             self.jobs["reconcile"] = {"status": "ok", "at": self._last_reconcile.isoformat()}
             return res if isinstance(res, dict) else {"ok": True}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.exception("reconcile failed")
             self.jobs["reconcile"] = {"status": "error", "error": str(exc)}
             return {"ok": False, "error": str(exc)}
@@ -601,6 +680,7 @@ class Runtime:
             "configured_mode": s.execution.mode.value,
             "execution_broker": getattr(self.exec_broker, "name", "paper"),
             "data_sources": dict(self.market.sources),
+            "agent_enabled": self.agent_enabled,
             "demo_mode": self.market.demo,
             "data_source": self.market.data_source,
             "market_open": self.clock.is_market_open(),

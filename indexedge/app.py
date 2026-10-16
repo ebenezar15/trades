@@ -19,7 +19,7 @@ from indexedge.core import bus as topics
 
 log = logging.getLogger(__name__)
 DIST = Path(__file__).resolve().parents[1] / "frontend" / "dist"
-WS_TOPICS = (topics.TICK, topics.CANDLE, topics.SIGNAL, topics.CONTEXT, topics.NEWS, topics.ORDER, topics.TRADE,
+WS_TOPICS = ("agent", topics.TICK, topics.CANDLE, topics.SIGNAL, topics.CONTEXT, topics.NEWS, topics.ORDER, topics.TRADE,
              topics.HEALTH, topics.ALERT)
 
 
@@ -61,10 +61,29 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
         await rt.start()
         app.state.rt = rt
         app.state.access_token = load_or_create_token(rt.data_dir)
+        app.state.sockets = set()
+
+        async def reload() -> None:
+            """Rebuild the runtime in place (e.g. after connecting Angel One). Clients reconnect automatically."""
+            old = app.state.rt
+            start_bg = old.start_background
+            await old.stop()
+            from indexedge.runtime import Runtime
+
+            new = Runtime(start_background=start_bg)
+            await new.start()
+            app.state.rt = new
+            for sock in list(app.state.sockets):
+                try:
+                    await sock.close(code=1012)
+                except Exception:  # noqa: BLE001
+                    pass
+
+        app.state.reload = reload
         try:
             yield
         finally:
-            await rt.stop()
+            await app.state.rt.stop()
 
     app = FastAPI(title="IndexEdge", version="1.0.0", lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=2048)
@@ -84,6 +103,7 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
             return
         await socket.accept()
         rt = app.state.rt
+        app.state.sockets.add(socket)
         queues = {t: rt.bus.queue(t, maxsize=500) for t in WS_TOPICS}
         merged: asyncio.Queue = asyncio.Queue(maxsize=2000)
 
@@ -113,6 +133,7 @@ def create_app(runtime: Any = None, start_background: bool = True) -> FastAPI:
                 p.cancel()
             for t, q in queues.items():
                 rt.bus.drop_queue(t, q)
+            app.state.sockets.discard(socket)
 
     if DIST.exists():
         app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")

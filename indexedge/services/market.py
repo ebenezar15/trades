@@ -53,14 +53,18 @@ class MarketData:
         self.store = store
         self.master = master
         self.data_broker = data_broker
-        self.demo = demo
+        self.demo = demo                                   # True = no broker market data
+        # actual price source: angel_one (real-time) | yahoo (real, may be delayed) | synthetic
+        self.feed = "angel_one" if (data_broker is not None and not demo) else "synthetic"
+        self.yahoo = None
+        self._yahoo_task: asyncio.Task | None = None
         self.frames: dict[str, pd.DataFrame] = {u: empty_candles() for u in UNDERLYINGS}
         self.ltp: dict[str, float] = {}
         self.prev_close: dict[str, float] = {}
         self.day_open: dict[str, float] = {}
         self.vix: float | None = None
         self.last_tick_at: datetime | None = None
-        self.data_source = "synthetic" if demo else "broker"
+        self.data_source = "synthetic" if demo else "angel_one"
         self.sources: dict[str, str] = {}                 # per-underlying history source
         self._token_map: dict[str, str] = {}          # token -> underlying / "VIX" / "FUT:<u>"
         self._sinks: list[TickSink] = []
@@ -114,6 +118,12 @@ class MarketData:
                     log.warning("only %d stored sessions for %s; using synthetic history",
                                 0 if df is None else len(set(df.index.date)), u)
                     df = empty_candles()
+            if (df is None or df.empty) and self.demo and self._yahoo_allowed():
+                df = await self._yahoo_history(u)
+                if df is not None and len(set(df.index.date)) >= MIN_SESSIONS:
+                    self.sources[u] = "yahoo"
+                else:
+                    df = empty_candles()
             if df is None or df.empty:
                 df = self._synthetic_history(u, days)
                 self.sources[u] = "synthetic"
@@ -126,9 +136,41 @@ class MarketData:
                 todays = df[df.index.date == today]
                 if not todays.empty:
                     self.day_open.setdefault(u, float(todays["open"].iloc[0]))
-        self.data_source = "synthetic" if "synthetic" in self.sources.values() else "broker"
+        vals = set(self.sources.values())
+        if self.demo:
+            self.feed = "yahoo" if vals == {"yahoo"} else "synthetic"
+            if self.feed == "synthetic" and "yahoo" in vals:      # never mix real and synthetic underlyings
+                for u in UNDERLYINGS:
+                    if self.sources.get(u) == "yahoo":
+                        self.frames[u] = self._synthetic_history(u, days)
+                        self.sources[u] = "synthetic"
+                        self.prev_close[u] = float(self.frames[u]["close"].iloc[-1])
+                        self.ltp[u] = self.prev_close[u]
+        if self.feed == "angel_one":
+            self.data_source = "synthetic" if "synthetic" in set(self.sources.values()) else "angel_one"
+        else:
+            self.data_source = self.feed
         if self.vix is None:
             self.vix = 13.5 if self.demo else None
+
+    def _yahoo_allowed(self) -> bool:
+        return str(getattr(self.settings.app, "data_feed", "auto")) in ("auto", "yahoo")
+
+    async def _yahoo_history(self, underlying: str) -> pd.DataFrame:
+        from indexedge.services.yahoo_feed import YahooFeed
+
+        if self.yahoo is None:
+            self.yahoo = YahooFeed(self.clock)
+        try:
+            df = await asyncio.wait_for(self.yahoo.history(underlying), 45)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Yahoo history for %s unavailable: %s", underlying, exc)
+            return empty_candles()
+        if self.clock.is_market_open() and not df.empty:
+            today = df[df.index.date == self.clock.today()]
+            if not today.empty:           # don't publish already-loaded bars again
+                self.yahoo.mark_published(underlying, today.index[-1])
+        return df
 
     def _synthetic_history(self, underlying: str, days: int) -> pd.DataFrame:
         hol = set(self.clock.holidays)
@@ -141,6 +183,9 @@ class MarketData:
 
     # ------------------------------------------------------------------ live feed
     async def start(self) -> None:
+        if self.feed == "yahoo" and self.yahoo is not None:
+            self._yahoo_task = asyncio.create_task(self.yahoo.run(self._yahoo_bar, self._yahoo_quote))
+            return
         if self.demo or self.data_broker is None:
             self._demo_task = asyncio.create_task(self._demo_loop())
             return
@@ -177,8 +222,33 @@ class MarketData:
             log.error("subscribe %s failed: %s", inst.symbol, exc)
 
     async def stop(self) -> None:
-        if self._demo_task:
-            self._demo_task.cancel()
+        for t in (self._demo_task, self._yahoo_task):
+            if t:
+                t.cancel()
+
+    # ------------------------------------------------------------------ Yahoo live
+    async def _yahoo_quote(self, key: str, px: float, ts: datetime) -> None:
+        now = self.clock.now()
+        if key == "INDIAVIX":
+            self.vix = px
+            return
+        self.ltp[key] = px
+        self.last_tick_at = now
+        await self.bus.publish(topics.TICK, {"underlying": key, "ltp": px, "ts": ts.isoformat(), "source": "yahoo"})
+        # options/futures have no Yahoo feed: paper fills use a model price from the real index level
+        for inst in list(self.demo_option_tokens.values()):
+            if inst.name == key:
+                await self._dispatch(Tick(token=inst.token, ts=now, ltp=self.demo_price(inst, now)))
+
+    async def _yahoo_bar(self, key: str, bar: pd.Series) -> None:
+        ts = pd.Timestamp(bar.name)
+        row = {c: float(bar[c]) for c in ("open", "high", "low", "close")}
+        row["volume"] = float(bar.get("volume", 0.0) or 0.0)
+        frame = self.frames[key]
+        new = pd.DataFrame([row], index=pd.DatetimeIndex([ts]))
+        self.frames[key] = pd.concat([frame[frame.index != ts], new]).sort_index().tail(HISTORY_DAYS * 80)
+        await self.bus.publish(topics.CANDLE, {"underlying": key, "tf": "5m", "candle_ts": ts,
+                                               "bar": {"time": int(ts.timestamp()), **row}})
 
     async def on_tick(self, tick: Tick) -> None:
         self.last_tick_at = self.clock.now()

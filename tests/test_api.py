@@ -18,6 +18,7 @@ def client(tmp_path_factory):
     s = Settings()
     s.app.data_dir = tmp_path_factory.mktemp("data")
     s.app.demo_mode = True
+    s.app.data_feed = "synthetic"          # tests stay offline
     s.news.sources = []
     rt = Runtime(s, start_background=False)
     rt.clock = SimClock(datetime(2026, 10, 14, 11, 0, tzinfo=IST))   # a Wednesday, market open

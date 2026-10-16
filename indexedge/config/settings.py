@@ -24,7 +24,8 @@ class AppSettings(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     log_level: str = "INFO"
-    demo_mode: bool = True            # synthetic/offline data when broker isn't configured
+    demo_mode: bool = True            # no broker: use Yahoo (real, delayed) or synthetic data
+    data_feed: str = "auto"           # auto: Angel One if connected, else Yahoo Finance, else synthetic
     disclaimer_accepted: bool = False
 
 

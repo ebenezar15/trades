@@ -28,8 +28,13 @@ backtests each strategy on your data, out of sample, after costs, and:
 - 🏅 **High win-rate** (≥ 80%) is shown, but always next to R:R and expectancy, with a warning when expectancy ≤ 0;
 - fewer than 50 historical trades → **"Insufficient data"**, no probability shown.
 
-Until you connect Angel One, the app runs in **demo mode** on synthetic prices so you can explore everything;
-demo statistics are labelled "SYNTHETIC — not real performance" everywhere.
+**Market data:** with Angel One connected, prices are real-time from Angel One's live feed. Before that, IndexEdge
+uses **real Nifty / Bank Nifty prices from Yahoo Finance** (may lag 1–2 minutes; no index volume), and only falls
+back to clearly labelled synthetic demo prices when there is no internet data at all.
+
+**Connecting Angel One:** in the SmartAPI form use Redirect URL `https://smartapi.angelone.in/` — Angel One rejects
+`localhost`. The in-app wizard (**Settings → Connect Angel One**) shows every field, tests the login step by step and
+connects without a restart.
 
 ## Install (Windows 10/11)
 

@@ -82,7 +82,10 @@ async def candles(request: Request, underlying: str = "NIFTY", tf: str = "5m", l
         return {"candles": candles_json(bars), "overlays": {"ema9": [], "ema21": [], "vwap": [], "supertrend": []},
                 "levels": {}}
     view = feat.tail(limit)
-    cur = rt.market._agg.current(f"DEMO_{u}") if rt.market.demo else None
+    if rt.market.feed == "yahoo" and rt.market.yahoo is not None:
+        cur = rt.market.yahoo.forming.get(u)
+    else:
+        cur = rt.market._agg.current(f"DEMO_{u}") if rt.market.demo else None
     cands = candles_json(view)
     if cur is not None:
         t = int(pd.Timestamp(cur.name).timestamp())
@@ -101,7 +104,56 @@ async def candles(request: Request, underlying: str = "NIFTY", tf: str = "5m", l
                             "direction": int(r.st_dir)} for t, r in st.iterrows()],
         },
         "levels": levels,
+        "markers": _chart_markers(rt, u, int(pd.Timestamp(view.index[0]).timestamp())),
+        "trade_lines": _trade_lines(rt, u),
     }
+
+
+def _chart_markers(rt: Any, u: str, since: int) -> list[dict]:
+    """Signals on this underlying as chart markers (bar time = signal bar)."""
+    seen, out = set(), []
+    rows = [rt.signals.to_json(s) for s in list(rt.signals.recent)]
+    try:
+        df = rt.journal.signals(start=rt.today() - timedelta(days=5), limit=300)
+        rows += [_journal_signal_json(rt, r) for r in (df.to_dict(orient="records") if not df.empty else [])]
+    except Exception:
+        log.exception("marker journal read failed")
+    for d in rows:
+        if d.get("underlying") != u or d.get("id") in seen:
+            continue
+        seen.add(d.get("id"))
+        try:
+            t = int(pd.Timestamp(d["ts"]).timestamp())
+        except Exception:
+            continue
+        if t < since:
+            continue
+        long = d.get("side") == "BUY"
+        status = d.get("status") or ""
+        color = ("#22c55e" if long else "#ef4444") if status in ("active", "taken", "pending_confirm") else "#94a3b8"
+        name = d.get("strategy_name") or d.get("strategy_id")
+        out.append({"time": t, "position": "belowBar" if long else "aboveBar",
+                    "shape": "arrowUp" if long else "arrowDown", "color": color,
+                    "text": f"{name}{' ✓' if status == 'taken' else ''}", "signal_id": d.get("id"), "status": status})
+    out.sort(key=lambda m: m["time"])
+    return out[-60:]
+
+
+def _trade_lines(rt: Any, u: str) -> list[dict]:
+    """Open trades on this underlying as entry / stop / target price lines in index points."""
+    lines = []
+    for t in rt.trades.open_trades:
+        if t.underlying != u:
+            continue
+        sig = rt.signals.by_id.get(t.signal_id) if t.signal_id else None
+        if sig is not None:
+            entry, stop, targets, side = sig.raw.entry, sig.raw.stop, list(sig.raw.targets), sig.raw.side.value
+        else:
+            entry, stop, targets, side = t.entry_price, t.stop, list(t.targets), t.side.value
+        strat = rt.strategies.get(t.strategy_id)
+        lines.append({"trade_id": t.trade_id, "side": side, "entry": entry, "stop": stop, "targets": targets,
+                      "status": "open", "label": getattr(strat, "name", t.strategy_id)})
+    return lines
 
 
 @router.get("/context")
@@ -613,7 +665,7 @@ def put_settings(request: Request, body: dict = Body(...)):
         setattr(rt.settings, section, getattr(new, section))
         rt.journal.audit_setting(section, old, getattr(new, section).model_dump(mode="json"))
     rt.settings.save_user()
-    rt.refresh_composer_settings()
+    rt.apply_settings()
     if "notify" in body:
         rt.telegram.chat_id = rt.settings.notify.telegram_chat_id if rt.settings.notify.telegram_enabled else ""
     return {"ok": True, "restart_required": bool(set(body) & {"app", "broker"})}
@@ -686,3 +738,73 @@ def ping():
 
 
 __all__ = ["Query", "router"]
+
+
+# ====================================================================== Angel One connection wizard
+@router.get("/broker/setup")
+async def broker_setup(request: Request):
+    from indexedge.services.broker_setup import setup_info
+
+    return jsonable(await setup_info(rt_of(request)))
+
+
+@router.post("/broker/test")
+async def broker_test(request: Request):
+    from indexedge.services.broker_setup import connection_test
+
+    return jsonable(await connection_test(rt_of(request)))
+
+
+@router.post("/broker/connect")
+async def broker_connect(request: Request):
+    """Test the login, then restart the runtime on Angel One real-time data (no app restart needed)."""
+    from indexedge.services.broker_setup import connection_test
+
+    rt = rt_of(request)
+    res = await connection_test(rt)
+    login_ok = any(s["name"].startswith("Login") and s["ok"] for s in res["steps"])
+    if not login_ok:
+        return jsonable({"ok": False, "message": "Login failed — fix the step marked ✕ and try again",
+                         "steps": res["steps"]})
+    rt.settings.app.demo_mode = False
+    rt.settings.save_user()
+    await request.app.state.reload()
+    new = rt_of(request)
+    ok = bool(new.angel and new.angel.connected)
+    return jsonable({"ok": ok, "steps": res["steps"],
+                     "message": "Connected — real-time Angel One data is live" if ok
+                     else "Login worked in the test but the live connection failed; see Health → log"})
+
+
+# ====================================================================== agent
+@router.get("/agent")
+def agent_status(request: Request):
+    rt = rt_of(request)
+    watching = []
+    for sid, strat in rt.strategies.items():
+        for u in UNDERLYINGS:
+            w = rt.agent.watch.get((sid, u), {})
+            watching.append({"strategy_id": sid, "name": strat.name, "underlying": u,
+                             "enabled": rt.strategy_enabled(sid, u),
+                             "execution_mode": rt.configured_execution_mode(sid).value,
+                             "last_eval_ts": w.get("last_eval_ts"),
+                             "state": w.get("state") or ("disabled" if not rt.strategy_enabled(sid, u) else "no_setup"),
+                             "detail": w.get("detail") or "Waiting for the next 5-minute candle"})
+    return jsonable({
+        "enabled": rt.agent_enabled,
+        "auto_strategies": [sid for sid in rt.strategies
+                            if rt.configured_execution_mode(sid) is ExecutionMode.AUTO],
+        "mode": rt.settings.execution.mode.value, "data_source": rt.market.data_source,
+        "market_open": rt.clock.is_market_open(), "next_bar_in_s": rt.agent.next_bar_in_s(),
+        "watching": watching, "log": list(rt.agent.entries)[:300],
+    })
+
+
+@router.post("/agent")
+async def agent_switch(request: Request, body: dict = Body(...)):
+    return jsonable(await rt_of(request).set_agent(bool(body.get("enabled"))))
+
+
+@router.post("/agent/auto-all")
+async def agent_auto_all(request: Request):
+    return jsonable(await rt_of(request).set_all_auto())

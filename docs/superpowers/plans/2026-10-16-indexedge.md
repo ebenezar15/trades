@@ -251,3 +251,30 @@ All JSON. Timestamps ISO-8601 with +05:30.
 - [x] T1 features · [ ] T2 data+brokers · [ ] T3 context/news/notify · [ ] T4 journal+risk · [ ] T8 frontend (wave 1)
 - [x] T5 strategies+backtest · [ ] T6 models · [ ] T7 signals+execution (wave 2)
 - [x] T9 API, app wiring, scheduler, Windows installer, docs, integration tests (wave 3)
+
+---
+
+## Iteration 2 (2026-10-16) — broker connection, real data, more strategies, agent
+
+### API additions (backend: lead; frontend: F2)
+- `GET /api/broker/setup` → `{connected, configured, data_source, public_ip, static_ip, smartapi_fields:[{field, value, note}],
+  secrets:{NAME:bool}, steps:[{id,title,done}]}` — values to type into the SmartAPI "Create App" form
+  (Redirect URL `https://smartapi.angelone.in/`, Postback URL blank, Primary static IP = public_ip).
+- `POST /api/broker/test` → `{ok, steps:[{name, ok, detail}]}` (secrets → TOTP clock → login → LTP NIFTY/BANKNIFTY → 5m candles →
+  funds → static IP). Never places orders.
+- `POST /api/broker/connect` → `{ok, message, steps}` — hot-switch from demo/Yahoo to Angel One real-time data (no restart).
+- `GET /api/candles` additionally returns `markers:[{time, position:'aboveBar'|'belowBar', shape:'arrowUp'|'arrowDown', color,
+  text, signal_id, status}]` (today's + recent signals on this underlying) and `trade_lines:[{trade_id, side, entry, stop,
+  targets:[..], status, label}]` (open trades on this underlying, in *underlying* price terms).
+- `GET /api/agent` → `{enabled, auto_strategies:[ids], data_source, market_open, next_bar_in_s, watching:[{strategy_id,
+  name, underlying, enabled, execution_mode, last_eval_ts, state:'signal'|'no_setup'|'blocked'|'disabled', detail}],
+  log:[{ts, level:'info'|'warning'|'error'|'trade', kind, message}]}`.
+- `POST /api/agent {enabled: bool}` → master switch. OFF ⇒ strategies in `auto` mode behave like `signal_only`.
+  `POST /api/agent/auto-all` → set every *enabled* strategy to `auto`.
+- WS new message type `agent` → one log entry `{ts, level, kind, message}`.
+- `status.data_source` ∈ `angel_one` (real-time) | `yahoo` (delayed ~1–2 min, no volume for index) | `synthetic`;
+  `status.data_sources` per underlying.
+
+### New strategies (S2) — same Strategy plug-in contract
+`ema_pullback`, `fib_pullback`, `supertrend_pullback`, `breakout_retest`, `bollinger_reversion`, `macd_trend` (+ any equally
+popular one research finds). Each with research notes appended to `docs/STRATEGY_RESEARCH.md`.

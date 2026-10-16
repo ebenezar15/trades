@@ -77,10 +77,24 @@ class SignalEngine:
             except Exception:
                 log.exception("signal engine failed for %s", underlying)
 
+    def _scan_all(self, feat: pd.DataFrame, underlying: str, extra: dict | None) -> dict[str, Any]:
+        """Run every strategy on the latest bar (worker thread). Returns id -> StrategySignal | str (reason)."""
+        res: dict[str, Any] = {}
+        for sid, strat in list(self.rt.strategies.items()):
+            try:
+                raw = strat.latest(feat, underlying, extra)
+                res[sid] = raw if raw is not None else (strat.last_skip_reason or "setup conditions not met")
+            except Exception as exc:
+                log.exception("strategy %s failed", sid)
+                res[sid] = f"error: {exc}"
+        return res
+
     async def _run(self, underlying: str) -> list[Signal]:
         rt = self.rt
+        agent = rt.agent
         if not rt.market.demo and rt.market.sources.get(underlying) == "synthetic":
             log.warning("no real history for %s yet — signals withheld", underlying)
+            await agent.log("scan", f"{underlying}: waiting for real history before scanning", "warning")
             return []
         feat = await asyncio.to_thread(self.compute_features, underlying)
         if feat.empty:
@@ -89,14 +103,15 @@ class SignalEngine:
         context = rt.context.latest if rt.context else None
         news = rt.news.latest(20) if rt.news else []
         extra = rt.market.oi_extra(underlying)
+        results = await asyncio.to_thread(self._scan_all, feat, underlying, extra)
         out: list[Signal] = []
-        for sid, strat in rt.strategies.items():
-            try:
-                raw = strat.latest(feat, underlying, extra)
-            except Exception:
-                log.exception("strategy %s failed", sid)
+        for sid, raw in results.items():
+            strat = rt.strategies.get(sid)
+            if strat is None:
                 continue
-            if raw is None:
+            if isinstance(raw, str):
+                state = "disabled" if not rt.strategy_enabled(sid, underlying) else "no_setup"
+                agent.set_watch(sid, underlying, state, raw)
                 continue
             stats = self.stats_for(sid, underlying)
             sig = rt.composer.compose(raw, feat.iloc[-1], context, stats, regime, news=news,
@@ -107,8 +122,21 @@ class SignalEngine:
             if sig.status == "active" and not rt.strategy_enabled(sid, underlying):
                 sig.status = "blocked"
                 sig.blocked_reason = f"Strategy not validated for {underlying} (enable it in Strategy Lab to override)"
+            agent.set_watch(sid, underlying, "signal" if sig.status == "active" else "blocked",
+                            sig.blocked_reason or f"{raw.side.value} at {raw.entry:,.1f}")
+            p = f"{sig.probability * 100:.0f}% (n={sig.sample_size})" if sig.probability is not None else "insufficient data"
+            await agent.log("signal", f"{strat.name} {raw.side.value} {underlying} at {raw.entry:,.1f} "
+                            f"(SL {raw.stop:,.1f}) · P {p} · "
+                            + (f"BLOCKED: {sig.blocked_reason}" if sig.status != "active"
+                               else f"mode {rt.execution_mode(sid).value}"),
+                            "info" if sig.status == "active" else "warning")
             await self.publish(sig, strat.name)
             out.append(sig)
+        bar_t = feat.index[-1].strftime("%H:%M")
+        n_no = sum(1 for v in results.values() if isinstance(v, str))
+        await agent.log("scan", f"{underlying} {bar_t} bar: scanned {len(results)} strategies — "
+                        f"{len(out)} signal(s), {n_no} no setup · regime {regime.replace('_', ' ')}"
+                        + (" · context risk-off" if context is not None and context.risk_off else ""))
         return out
 
     def _align_ev(self, sig: Signal, stats: dict[str, Any]) -> None:
