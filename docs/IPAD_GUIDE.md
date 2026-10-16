@@ -44,7 +44,8 @@ Telegram is free. Because IndexEdge never places orders itself in this setup, **
 
 Then enable TOTP, paste the API key, client code, PIN and TOTP text key into the wizard, press **Test connection**
 and **Connect now**. From then on the PC logs in to Angel One by itself every morning at 08:30 and streams
-real-time Nifty / Bank Nifty prices.
+real-time Nifty / Bank Nifty / Sensex prices. Sensex trades are BSE contracts: the ticket shows exchange
+**BFO** — pick BFO (not NFO) when you search the symbol in Angel One.
 
 ## 5. A trading day
 

@@ -18,7 +18,9 @@ SmartAPI forum, Angel One news (April 2026 algo changes). Items marked ⚠ could
 - **strike is ×100** (17500 → "1750000.000000"); **tick_size in paise** ("5.000000" → ₹0.05).
 - instrumenttype: OPTIDX, FUTIDX, AMXIDX (+ OPTSTK, FUTSTK). exch_seg: NSE, NFO, BSE, BFO, MCX, nse_cm.
 - expiry format `DDMMMYYYY` e.g. `25NOV2025` ⚠ (parse defensively).
-- Index tokens: NIFTY 99926000, BANKNIFTY 99926009, INDIA VIX 99926017 (forum).
+- Index tokens: NIFTY 99926000, BANKNIFTY 99926009, INDIA VIX 99926017 (exchange NSE); SENSEX 99919000 with
+  exchange **BSE** (SmartAPI team on the forum: "token is correct '99919000' and segment is BSE"). SENSEX
+  options/futures are on **BFO** (WebSocket exchangeType 4; BSE = 3).
 
 ## Historical candles
 - `getCandleData({"exchange","symboltoken","interval","fromdate","todate"})`, dates `"YYYY-MM-DD HH:MM"`.
@@ -61,7 +63,9 @@ SmartAPI forum, Angel One news (April 2026 algo changes). Items marked ⚠ could
 - F&O intraday auto square-off **15:20**; NFO trades till 15:40; SmartAPI rejects entries 15:15–15:20 for CAS scrips.
 
 ## Contract facts (derive from master at runtime)
-- NIFTY lot 65, weekly expiry Tuesday. BANKNIFTY lot 30, **monthly only** (last Tuesday). ⚠ secondary sources.
+- NIFTY lot 65, weekly expiry Tuesday. BANKNIFTY lot 30, **monthly only** (last Tuesday). SENSEX lot 20, weekly
+  expiry **Thursday** (since 2025-09-01), monthly last Thursday. ⚠ secondary sources — real lot sizes and expiries
+  are always read from the instrument master.
 
 ## Free data (⚠ untested from build environment)
 - NSE (needs browser headers + cookie from homepage): `/api/option-chain-indices?symbol=NIFTY`

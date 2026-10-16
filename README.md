@@ -1,6 +1,6 @@
 # IndexEdge
 
-A self-hosted trading assistant for **Nifty 50 and Bank Nifty** on **Angel One SmartAPI**. It runs on your own
+A self-hosted trading assistant for **Nifty 50, Bank Nifty and Sensex** on **Angel One SmartAPI**. It runs on your own
 Windows PC, opens in any browser (desktop or phone on your home Wi-Fi, installable as an app), and:
 
 - checks **external markets first** (GIFT Nifty, US futures, Asian indices, India VIX, USD/INR, crude, US yields,
@@ -29,7 +29,7 @@ backtests each strategy on your data, out of sample, after costs, and:
 - fewer than 50 historical trades → **"Insufficient data"**, no probability shown.
 
 **Market data:** with Angel One connected, prices are real-time from Angel One's live feed. Before that, IndexEdge
-uses **real Nifty / Bank Nifty prices from Yahoo Finance** (may lag 1–2 minutes; no index volume), and only falls
+uses **real Nifty / Bank Nifty / Sensex prices from Yahoo Finance** (may lag 1–2 minutes; no index volume), and only falls
 back to clearly labelled synthetic demo prices when there is no internet data at all.
 
 **Connecting Angel One:** in the SmartAPI form use Redirect URL `https://smartapi.angelone.in/` — Angel One rejects
