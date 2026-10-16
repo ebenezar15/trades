@@ -44,8 +44,9 @@ def test_values_sane(df5):
     assert f["st_dir"].dropna().isin([-1, 1]).all()
     assert f["minute_of_day"].iloc[0] == 9 * 60 + 15 and f["mins_from_open"].iloc[0] == 0
     assert f["day_of_week"].iloc[0] == 0  # 2026-01-05 is a Monday
-    d2 = f[day == sorted(set(day))[1]]
-    prev = df5[day == sorted(set(day))[0]]
+    days = sorted(set(day))
+    d2 = f[day == days[1]]
+    prev = df5[day == days[0]]
     assert d2["gap_pct"].iloc[0] == pytest.approx((d2.open.iloc[0] / prev.close.iloc[-1] - 1) * 100)
 
 

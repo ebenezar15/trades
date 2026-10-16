@@ -11,6 +11,7 @@ Conventions
 """
 from __future__ import annotations
 
+import math
 from datetime import date, timedelta
 
 import numpy as np
@@ -59,7 +60,7 @@ def _seeded_recursive(values: np.ndarray, n: int, alpha: float) -> np.ndarray:
     y = np.nan
     seeded = False
     for i, x in enumerate(values):
-        if x != x:  # NaN
+        if math.isnan(x):
             continue
         if not seeded:
             acc += x
@@ -181,7 +182,7 @@ def supertrend(df: pd.DataFrame, n: int = 10, mult: float = 3.0) -> pd.DataFrame
     d = 0
     started = False
     for i in range(m):
-        if a[i] != a[i]:
+        if math.isnan(a[i]):
             continue
         if not started:
             fu, fd = up_basic[i], dn_basic[i]
@@ -445,7 +446,7 @@ def heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
     hc = (o + h + lo + c) / 4.0
     ho = np.full(len(df), np.nan)
     for i in range(len(df)):
-        ho[i] = (o[i] + c[i]) / 2.0 if i == 0 or ho[i - 1] != ho[i - 1] else (ho[i - 1] + hc[i - 1]) / 2.0
+        ho[i] = (o[i] + c[i]) / 2.0 if i == 0 or math.isnan(ho[i - 1]) else (ho[i - 1] + hc[i - 1]) / 2.0
     return pd.DataFrame({"open": ho, "high": np.fmax(h, np.fmax(ho, hc)), "low": np.fmin(lo, np.fmin(ho, hc)),
                          "close": hc}, index=df.index)
 
@@ -487,17 +488,18 @@ def divergence(price: pd.Series, osc: pd.Series, lookback: int = 30, swing: int 
     last_lo: int | None = None
     sh = sp["swing_high"].to_numpy()
     sl = sp["swing_low"].to_numpy()
+    ok = ~np.isnan(o)
     for i in range(len(p)):
         piv = i - swing
-        if sh[i] == sh[i]:
-            if last_hi is not None and piv - last_hi <= lookback and o[piv] == o[piv] and o[last_hi] == o[last_hi]:
-                if pv[piv] > pv[last_hi] and o[piv] < o[last_hi]:
-                    out[i] = -1
+        if not np.isnan(sh[i]):
+            if (last_hi is not None and piv - last_hi <= lookback and ok[piv] and ok[last_hi]
+                    and pv[piv] > pv[last_hi] and o[piv] < o[last_hi]):
+                out[i] = -1
             last_hi = piv
-        if sl[i] == sl[i]:
-            if last_lo is not None and piv - last_lo <= lookback and o[piv] == o[piv] and o[last_lo] == o[last_lo]:
-                if pv[piv] < pv[last_lo] and o[piv] > o[last_lo]:
-                    out[i] = 1
+        if not np.isnan(sl[i]):
+            if (last_lo is not None and piv - last_lo <= lookback and ok[piv] and ok[last_lo]
+                    and pv[piv] < pv[last_lo] and o[piv] > o[last_lo]):
+                out[i] = 1
             last_lo = piv
     return pd.Series(out, index=price.index)
 
