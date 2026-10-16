@@ -77,5 +77,5 @@ def test_lab_prefers_stored_candles(tmp_path):
 def test_lab_report_all_and_default():
     lab = StrategyLab(Settings())
     reps = lab.report_all("BANKNIFTY", days=30)
-    assert len(reps) == 13 and all("status" in r and "metrics" in r for r in reps.values())
+    assert len(reps) == len(all_strategies()) and all("status" in r and "metrics" in r for r in reps.values())
     assert isinstance(StrategyLab.default(), StrategyLab)
