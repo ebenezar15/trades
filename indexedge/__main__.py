@@ -86,7 +86,15 @@ def _run(args) -> None:
     url = f"http://localhost:{args.port or s.app.port}"
     if not args.no_browser:
         threading.Timer(2.5, lambda: webbrowser.open(url)).start()
-    print(f"IndexEdge running at {url}  (to use your phone: Settings → Phone access → scan the QR code)")
+    from indexedge.api.auth import AuthStore, lan_ip
+
+    port = args.port or s.app.port
+    print(f"IndexEdge running at {url}")
+    print(f"  iPad / phone on the same Wi-Fi:  http://{lan_ip()}:{port}   (log in with your IndexEdge password)")
+    auth = AuthStore(s.app.data_dir)
+    if not auth.password_set:
+        print(f"  No password yet - create it on this PC, or on the iPad with setup code {auth.setup_code}")
+    print("  From anywhere (free): Settings -> Use IndexEdge from anywhere")
     uvicorn.run("indexedge.app:create_app", factory=True, host=args.host or s.app.host,
                 port=args.port or s.app.port, log_level=s.app.log_level.lower())
 

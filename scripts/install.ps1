@@ -80,4 +80,12 @@ if ($fw -match '^[Yy]') {
     Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -Command New-NetFirewallRule -DisplayName IndexEdge -Direction Inbound -Protocol TCP -LocalPort 8000 -Profile Private -Action Allow"
 }
 
+# 9. Keep the PC awake during market hours (the iPad only shows what this PC computes)
+$sl = Read-Host "Stop this PC from sleeping while plugged in, so IndexEdge keeps running for your iPad? (Y/n)"
+if ($sl -notmatch '^[Nn]') {
+    powercfg /change standby-timeout-ac 0
+    Write-Host "Sleep on mains power disabled (the screen can still turn off)."
+}
+
 Step "Done. Double-click 'IndexEdge' on your desktop to start. The app opens at http://localhost:8000"
+Write-Host "On your iPad (same Wi-Fi) open the address shown in the IndexEdge window, log in, then Share -> Add to Home Screen."
