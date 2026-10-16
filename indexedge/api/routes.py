@@ -140,9 +140,17 @@ def _chart_markers(rt: Any, u: str, since: int) -> list[dict]:
                     "signal_id": d.get("id"), "status": status})
     out.sort(key=lambda m: m["time"])
     out = out[-60:]
-    labelled = [m for m in out if m["text"]]
-    for m in labelled[:-4]:            # keep text on the 4 most recent actionable markers only
-        m["text"] = ""
+    # keep text only on the latest actionable marker of each strategy (max 3) so labels don't pile up
+    keep, names = set(), set()
+    for k in range(len(out) - 1, -1, -1):
+        m = out[k]
+        name = m["text"].rstrip(" ✓")
+        if m["text"] and name not in names and len(keep) < 3:
+            keep.add(k)
+            names.add(name)
+    for k, m in enumerate(out):
+        if k not in keep:
+            m["text"] = ""
     return out
 
 
