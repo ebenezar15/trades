@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -66,6 +67,12 @@ def sl_limit_price(side: Side, trigger: float, tick: float, buffer_pct: float) -
     if side is Side.SELL:
         return round_to_tick(trigger - off, tick, "down")
     return round_to_tick(trigger + off, tick, "up")
+
+
+def tagged_client_id(tag: str) -> str:
+    """19-char client order id that starts with ``tag[:16]`` and is otherwise random (unique per order)."""
+    base = tag[:16]
+    return (base + uuid.uuid4().hex + uuid.uuid4().hex)[:19]
 
 
 class OrderManager:
@@ -256,12 +263,20 @@ class OrderManager:
         return await self.chase(side, instrument, qty, ref_price, tag)
 
     async def place_stop(self, instrument: Instrument, side: Side, qty: int, trigger: float,
-                         tag: str = "") -> Order:
-        """SL-L order on ``side`` (SELL protects a long) with trigger = stop."""
+                         tag: str = "", client_id: str | None = None) -> Order:
+        """SL-L order on ``side`` (SELL protects a long) with trigger = stop.
+
+        The request's ``client_id`` starts with ``tag[:16]`` (plus random characters, 19 in total) so the
+        broker-side order tag identifies the owning trade even on brokers that echo ``client_id`` as the tag
+        (Angel One sends ``client_id[:19]`` as ``ordertag``): a restarted trade manager finds its stop again.
+        """
         tick = instrument.tick_size
         trig = round_to_tick(trigger, tick)
         price = sl_limit_price(side, trig, tick, float(self.exec.sl_limit_buffer_pct))
-        req = OrderRequest(instrument, side, qty, OrderType.SL_LIMIT, price, trigger_price=trig, tag=tag[:19])
+        client_id = client_id or (tagged_client_id(tag) if tag else None)
+        extra = {"client_id": client_id} if client_id else {}
+        req = OrderRequest(instrument, side, qty, OrderType.SL_LIMIT, price, trigger_price=trig, tag=tag[:19],
+                           **extra)
         return await self.place(req)
 
     async def modify_stop(self, order: Order, trigger: float) -> Order:

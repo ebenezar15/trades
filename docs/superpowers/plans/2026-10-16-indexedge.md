@@ -248,6 +248,6 @@ All JSON. Timestamps ISO-8601 with +05:30.
 - `WS /ws` → messages `{type: 'tick'|'candle'|'signal'|'context'|'news'|'order'|'trade'|'health'|'alert', data}`
 
 ## Tasks
-- [ ] T1 features · [ ] T2 data+brokers · [ ] T3 context/news/notify · [ ] T4 journal+risk · [ ] T8 frontend (wave 1)
-- [ ] T5 strategies+backtest · [ ] T6 models · [ ] T7 signals+execution (wave 2)
-- [ ] T9 API, app wiring, scheduler, Windows installer, docs, integration tests (wave 3)
+- [x] T1 features · [ ] T2 data+brokers · [ ] T3 context/news/notify · [ ] T4 journal+risk · [ ] T8 frontend (wave 1)
+- [x] T5 strategies+backtest · [ ] T6 models · [ ] T7 signals+execution (wave 2)
+- [x] T9 API, app wiring, scheduler, Windows installer, docs, integration tests (wave 3)
