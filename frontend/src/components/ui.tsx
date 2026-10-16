@@ -216,7 +216,7 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={cls('rounded-md px-2.5 py-1 text-xs font-semibold transition', value === o.value ? 'bg-panel text-fg shadow' : 'text-muted')}
+          className={cls('whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold transition', value === o.value ? 'bg-panel text-fg shadow' : 'text-muted')}
         >
           {o.label}
         </button>

@@ -46,9 +46,8 @@ export function ProbabilityGauge({ p, ci, n, size = 112 }: { p: number | null; c
         <path d={arc(0, 1)} stroke="rgb(var(--line))" strokeWidth={8} fill="none" strokeLinecap="round" />
         {ci && <path d={arc(ci[0], ci[1])} stroke={color} strokeOpacity={0.35} strokeWidth={14} fill="none" />}
         <path d={arc(0, p)} stroke={color} strokeWidth={8} fill="none" strokeLinecap="round" />
-        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="rgb(var(--fg))" strokeWidth={2} />
-        <circle cx={cx} cy={cy} r={3} fill="rgb(var(--fg))" />
-        <text x={cx} y={cy - r * 0.38} textAnchor="middle" fontSize={size * 0.17} fontWeight={700} fill="rgb(var(--fg))">
+        <circle cx={nx} cy={ny} r={4} fill="rgb(var(--fg))" stroke={color} strokeWidth={2} />
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize={size * 0.17} fontWeight={700} fill="rgb(var(--fg))">
           {prob(p)}
         </text>
       </svg>
@@ -64,7 +63,8 @@ export function ProbabilityGauge({ p, ci, n, size = 112 }: { p: number | null; c
 export function RrExpectancy({ s }: { s: SignalJSON }) {
   const hwr = s.badges.includes('high_win_rate');
   const expR = s.expectancy_r;
-  const negative = (expR !== null && expR !== undefined ? expR <= 0 : s.ev_per_trade <= 0) || s.badges.includes('negative_expectancy_warning');
+  const unknown = s.probability === null && (expR === null || expR === undefined);
+  const negative = !unknown && (expR !== null && expR !== undefined ? expR <= 0 : s.ev_per_trade <= 0) || s.badges.includes('negative_expectancy_warning');
   return (
     <div
       className={cls(
@@ -78,10 +78,10 @@ export function RrExpectancy({ s }: { s: SignalJSON }) {
       </span>
       <span>
         Exp{' '}
-        <b className={cls('font-mono', negative ? 'text-warn' : 'text-up')}>
+        <b className={cls('font-mono', unknown ? 'text-muted' : negative ? 'text-warn' : 'text-up')}>
           {expR !== null && expR !== undefined ? `${expR > 0 ? '+' : ''}${fmt(expR, 2)}R` : ''}
           {expR !== null && expR !== undefined ? ' · ' : ''}
-          {signedInr(s.ev_per_trade)}
+          {s.probability === null && (expR === null || expR === undefined) ? 'n/a' : signedInr(s.ev_per_trade)}
         </b>
       </span>
       {hwr && negative && <span className="font-semibold text-warn">⚠ Expectancy ≤ 0 — high win rate hides larger losses</span>}

@@ -1,7 +1,7 @@
-import { cloneElement, useMemo, useState } from 'react';
+import { cloneElement, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { OptionLeg } from '../api/types';
-import { Card, Chip, ErrorBox, Loading, PageHeader, Segmented, Stat, TableWrap, Toggle } from '../components/ui';
+import { Card, Chip, ErrorBox, Loading, PageHeader, Segmented, Stat, Toggle } from '../components/ui';
 import { cls, compact, fmt, titleCase } from '../lib/format';
 import { useApi } from '../lib/useApi';
 
@@ -29,6 +29,12 @@ export default function OptionChain() {
   const [greeks, setGreeks] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const oc = useApi(() => api.optionChain(u, expiry), [u, expiry], 15000);
   const d = oc.data;
+  const scroller = useRef<HTMLDivElement>(null);
+  // centre the strike column on narrow screens so both CE and PE sides are reachable
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+  }, [d?.expiry, u, greeks]);
 
   const { maxOi, maxChg, atm } = useMemo(() => {
     if (!d) return { maxOi: 0, maxChg: 0, atm: 0 };
@@ -111,7 +117,7 @@ export default function OptionChain() {
             {d.walls.support.map((w) => <Chip key={w} tone="up">{fmt(w, 0)}</Chip>)}
           </div>
           <Card>
-            <TableWrap>
+            <div ref={scroller} className="-mx-3 overflow-x-auto px-3 sm:-mx-4 sm:px-4">
               <table className="tbl">
                 <thead>
                   <tr>
@@ -148,7 +154,7 @@ export default function OptionChain() {
                   })}
                 </tbody>
               </table>
-            </TableWrap>
+            </div>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted">
               <span className="rounded bg-up/25 px-1.5">LB Long buildup</span>
               <span className="rounded bg-down/25 px-1.5">SB Short buildup</span>

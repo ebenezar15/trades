@@ -30,6 +30,8 @@ function baseOptions(theme: Theme, height: number) {
     rightPriceScale: { borderColor: c.border },
     timeScale: { borderColor: c.border, timeVisible: true, secondsVisible: false, rightOffset: 4 },
     crosshair: { mode: CrosshairMode.Normal },
+    // explicit locale: some devices report tags like "en-US@posix" that Intl rejects
+    localization: { locale: 'en-IN' },
   };
 }
 

@@ -6,7 +6,7 @@ import { useWsMessages } from '../api/ws';
 import { CandleChart } from '../components/charts';
 import { KillSwitch } from '../components/KillSwitch';
 import { SignalCard, isPendingConfirm } from '../components/signals';
-import { BiasMeter, Card, Chip, Empty, ErrorBox, Loading, Meter, TableWrap } from '../components/ui';
+import { BiasMeter, Card, Chip, Empty, ErrorBox, Loading, Meter } from '../components/ui';
 import { useApp } from '../lib/app-context';
 import { cls, fmt, inr, pct, pnlColor, signedInr, titleCase } from '../lib/format';
 import { useApi } from '../lib/useApi';
@@ -36,40 +36,27 @@ function Positions({ positions, trades }: { positions: Position[]; trades: Trade
       {positions.length === 0 ? (
         <Empty>No open positions</Empty>
       ) : (
-        <TableWrap>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th className="num">Qty</th>
-                <th className="num">Avg</th>
-                <th className="num">LTP</th>
-                <th className="num">P&amp;L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((p) => {
-                const tr = trades.find((t) => t.instrument_symbol === p.symbol);
-                return (
-                  <tr key={p.symbol}>
-                    <td>
-                      <div className="font-medium">{p.symbol}</div>
-                      {tr && (
-                        <div className="text-[11px] text-muted">
-                          {tr.strategy_id} · SL {fmt(tr.stop)} · T {tr.targets.map((x) => fmt(x)).join('/')}
-                        </div>
-                      )}
-                    </td>
-                    <td className={cls('num', p.qty < 0 && 'text-down')}>{p.qty}</td>
-                    <td className="num">{fmt(p.avg_price)}</td>
-                    <td className="num">{fmt(p.ltp)}</td>
-                    <td className={cls('num font-semibold', pnlColor(p.pnl))}>{signedInr(p.pnl)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableWrap>
+        <ul className="divide-y divide-line">
+          {positions.map((p) => {
+            const tr = trades.find((t) => t.instrument_symbol === p.symbol);
+            return (
+              <li key={p.symbol} className="flex items-start justify-between gap-2 py-2">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{p.symbol}</div>
+                  <div className="font-mono text-xs text-muted">
+                    <span className={cls(p.qty < 0 && 'text-down')}>{p.qty}</span> @ {fmt(p.avg_price)} → <span className="text-fg">{fmt(p.ltp)}</span>
+                  </div>
+                  {tr && (
+                    <div className="truncate text-[11px] text-muted">
+                      {tr.strategy_id} · SL {fmt(tr.stop)} · T {tr.targets.map((x) => fmt(x)).join('/')}
+                    </div>
+                  )}
+                </div>
+                <span className={cls('shrink-0 font-mono font-semibold', pnlColor(p.pnl))}>{signedInr(p.pnl)}</span>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Card>
   );

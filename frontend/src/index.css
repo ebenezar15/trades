@@ -116,3 +116,9 @@ body {
 .prose-md a {
   @apply text-accent underline;
 }
+
+/* Grid/flex children default to min-width:auto, which lets wide content (tables, chips) push the
+   layout viewport wider than the phone screen. Allow them to shrink; wide tables scroll inside TableWrap. */
+.grid > * {
+  min-width: 0;
+}

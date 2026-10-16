@@ -116,6 +116,8 @@ class WsManager {
   getState = () => this.state;
 
   private async startMock() {
+    // literal env check so production builds drop the mock module entirely
+    if (import.meta.env.VITE_MOCK !== '1') return;
     const { mockTick } = await import('./mock');
     this.setState('open');
     setInterval(() => {

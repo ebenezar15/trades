@@ -100,7 +100,9 @@ function BacktestModal({ s, onClose }: { s: StrategyInfo; onClose: () => void })
       {res && (
         <div className="mt-4 space-y-4">
           <div className="flex flex-wrap gap-1.5">
-            <Chip tone={res.report.status === 'validated' ? 'up' : res.report.status === 'rejected' ? 'down' : 'warn'}>{titleCase(res.report.status)}</Chip>
+            {!res.report.badges.includes(res.report.status) && (
+              <Chip tone={res.report.status === 'validated' ? 'up' : res.report.status === 'rejected' ? 'down' : 'warn'}>{titleCase(res.report.status)}</Chip>
+            )}
             {res.report.badges.map((b) => <StrategyBadge key={b} badge={b} />)}
           </div>
           {res.report.warnings.length > 0 && <ul className="text-sm text-warn">{res.report.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}</ul>}
