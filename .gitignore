@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+!tests/data/
+node_modules/
+frontend/dist/
+.pytest_cache/
+.ruff_cache/
+*.duckdb
+*.duckdb.wal
+logs/

@@ -1,0 +1,53 @@
+# IndexEdge default configuration. Do not edit — the app writes your changes to data/settings.yaml.
+# Secrets (API key, PIN, TOTP secret, Telegram token) are NOT stored here; use the setup wizard.
+
+app:
+  port: 8000
+  demo_mode: true
+
+broker:
+  static_ip: ""            # the static IP registered on your SmartAPI app
+  intraday_cutoff: "15:20" # Angel One F&O intraday auto square-off (verify periodically)
+
+news:
+  sources:
+    - {name: "ET Markets", url: "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"}
+    - {name: "Moneycontrol Markets", url: "https://www.moneycontrol.com/rss/marketreports.xml"}
+    - {name: "Moneycontrol Business", url: "https://www.moneycontrol.com/rss/business.xml"}
+    - {name: "LiveMint Markets", url: "https://www.livemint.com/rss/markets"}
+    - {name: "Business Standard Markets", url: "https://www.business-standard.com/rss/markets-106.rss"}
+    - {name: "RBI Press Releases", url: "https://www.rbi.org.in/pressreleases_rss.xml"}
+    - {name: "SEBI Press Releases", url: "https://www.sebi.gov.in/sebirss.xml"}
+    - {name: "PIB Finance", url: "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3"}
+    - {name: "Reuters Business (Google News)", url: "https://news.google.com/rss/search?q=reuters+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en"}
+
+# Approximate index weights (%) of heavyweights used for breadth / driver attribution.
+# Refresh periodically from NSE index factsheets.
+heavyweights:
+  NIFTY:
+    HDFCBANK: 13.0
+    ICICIBANK: 8.5
+    RELIANCE: 8.5
+    INFY: 5.0
+    BHARTIARTL: 4.5
+    LT: 3.8
+    ITC: 3.5
+    TCS: 3.2
+    SBIN: 3.0
+    AXISBANK: 3.0
+    KOTAKBANK: 2.8
+    M&M: 2.5
+  BANKNIFTY:
+    HDFCBANK: 28.0
+    ICICIBANK: 25.0
+    SBIN: 9.0
+    KOTAKBANK: 8.5
+    AXISBANK: 8.5
+    INDUSINDBK: 3.0
+    FEDERALBNK: 2.5
+    BANKBARODA: 2.5
+    AUBANK: 2.0
+    PNB: 2.0
+
+# NSE trading holidays (YYYY-MM-DD). The app also tries to download the official list daily.
+holidays: []
