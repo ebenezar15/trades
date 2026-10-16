@@ -161,11 +161,16 @@ class MarketData:
 
         if self.yahoo is None:
             self.yahoo = YahooFeed(self.clock)
+        if getattr(self, "_yahoo_failed", False):
+            return empty_candles()
         try:
-            df = await asyncio.wait_for(self.yahoo.history(underlying), 45)
+            df = await asyncio.wait_for(self.yahoo.history(underlying), 20)
         except Exception as exc:  # noqa: BLE001
             log.warning("Yahoo history for %s unavailable: %s", underlying, exc)
-            return empty_candles()
+            df = empty_candles()
+        if df.empty:
+            self._yahoo_failed = True          # don't wait again for the other index
+            return df
         if self.clock.is_market_open() and not df.empty:
             today = df[df.index.date == self.clock.today()]
             if not today.empty:           # don't publish already-loaded bars again

@@ -57,7 +57,8 @@ async def setup_info(rt: Any) -> dict[str, Any]:
          "note": "Angel One requires an https web address — localhost and IP addresses are rejected. IndexEdge logs "
                  "in with PIN + TOTP and never uses this URL, so Angel One's own site is a safe choice."},
         {"field": "Postback URL", "value": "", "note": "Leave empty (optional)."},
-        {"field": "Primary static IP", "value": pub or rt.settings.broker.static_ip or "",
+        {"field": "Primary static IP",
+         "value": pub or rt.settings.broker.static_ip or "your public IPv4 — open https://api.ipify.org to see it",
          "note": "Your PC's public IPv4. Needed only for placing live orders; market data works without it. "
                  "Ask your internet provider for a static IP before going live."},
     ]

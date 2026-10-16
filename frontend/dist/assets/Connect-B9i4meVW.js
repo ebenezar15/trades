@@ -1,1 +1,0 @@
-import{j as e,P as t}from"./index-Dj5Lp0MM.js";import{C as a}from"./ConnectWizard-DMQkYn4C.js";function s(){return e.jsxs("div",{className:"mx-auto max-w-3xl space-y-3",children:[e.jsx(t,{title:"Connect Angel One",subtitle:"Switch IndexEdge from demo / delayed data to Angel One real-time data"}),e.jsx(a,{})]})}export{s as default};

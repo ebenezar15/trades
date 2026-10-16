@@ -94,7 +94,7 @@ function Header() {
           {MOCK
             ? 'MOCK MODE — UI running on built-in fake data'
             : status?.data_source === 'yahoo'
-              ? 'DEMO MODE — delayed Yahoo data, broker not connected'
+              ? 'REAL PRICES via Yahoo Finance (may lag 1–2 min) — broker not connected'
               : 'DEMO MODE — synthetic data, broker not configured'}
           {status?.data_source !== 'angel_one' && (
             <Link to="/connect" className="ml-2 whitespace-nowrap font-bold underline underline-offset-2">

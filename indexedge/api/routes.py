@@ -134,9 +134,16 @@ def _chart_markers(rt: Any, u: str, since: int) -> list[dict]:
         name = d.get("strategy_name") or d.get("strategy_id")
         out.append({"time": t, "position": "belowBar" if long else "aboveBar",
                     "shape": "arrowUp" if long else "arrowDown", "color": color,
-                    "text": f"{name}{' ✓' if status == 'taken' else ''}", "signal_id": d.get("id"), "status": status})
+                    # label only actionable signals; blocked ones are plain grey arrows (keeps the chart readable)
+                    "text": (f"{name}{' ✓' if status == 'taken' else ''}"
+                             if status in ("active", "taken", "pending_confirm") else ""),
+                    "signal_id": d.get("id"), "status": status})
     out.sort(key=lambda m: m["time"])
-    return out[-60:]
+    out = out[-60:]
+    labelled = [m for m in out if m["text"]]
+    for m in labelled[:-4]:            # keep text on the 4 most recent actionable markers only
+        m["text"] = ""
+    return out
 
 
 def _trade_lines(rt: Any, u: str) -> list[dict]:
