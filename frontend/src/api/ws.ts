@@ -8,12 +8,10 @@ export type WsState = 'connecting' | 'open' | 'closed';
 type Listener = (msg: WsMessage) => void;
 
 class WsManager {
-  private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
   private stateListeners = new Set<() => void>();
   private attempt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private mockTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
   state: WsState = 'closed';
   lastMessageAt = 0;
@@ -51,7 +49,6 @@ class WsManager {
       this.scheduleReconnect();
       return;
     }
-    this.ws = ws;
     ws.onopen = () => {
       this.attempt = 0;
       this.setState('open');
@@ -67,7 +64,6 @@ class WsManager {
       if (msg && typeof msg === 'object' && 'type' in msg) this.emit(msg);
     };
     ws.onclose = () => {
-      this.ws = null;
       this.setState('closed');
       this.scheduleReconnect();
     };
@@ -122,7 +118,7 @@ class WsManager {
   private async startMock() {
     const { mockTick } = await import('./mock');
     this.setState('open');
-    this.mockTimer = setInterval(() => {
+    setInterval(() => {
       this.lastMessageAt = Date.now();
       mockTick().forEach((m) => this.emit(m));
     }, 1000);

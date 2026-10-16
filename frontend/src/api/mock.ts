@@ -555,7 +555,7 @@ function optionChain(underlying: string, expiry?: string): OptionChainResponse {
   const exp = expiry && expiries.includes(expiry) ? expiry : expiries[0];
   const T = Math.max((new Date(`${exp}T15:30:00+05:30`).getTime() - now()) / (365 * 864e5), 1 / 365);
   const r = rng(atm + exp.length);
-  const rows = [];
+  const rows: Array<{ strike: number; ce: OptionLeg; pe: OptionLeg }> = [];
   for (let k = -10; k <= 10; k++) {
     const K = atm + k * step;
     const leg = (opt: 'CE' | 'PE'): OptionLeg => {
