@@ -77,7 +77,8 @@ def eod_report(rt: Any, day: date) -> dict[str, Any]:
     from indexedge.journal.analytics import discipline_score, performance
 
     trades = rt.journal.trades(start=day, end=day)
-    trades = trades[trades.get("mode", pd.Series(dtype=str)) != "backtest"] if not trades.empty else trades
+    if not trades.empty:
+        trades = trades[(trades["mode"] != "backtest") & (trades["outcome"].fillna("") != "void_restart")]
     sigs = rt.journal.signals(start=day, end=day) if hasattr(rt.journal, "signals") else pd.DataFrame()
     perf = performance(trades, capital=rt.settings.risk.capital) if not trades.empty else {}
     pnl = float(trades["net_pnl"].sum()) if not trades.empty and "net_pnl" in trades else 0.0

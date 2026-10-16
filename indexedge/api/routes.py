@@ -268,7 +268,9 @@ def trade_detail(request: Request, tid: str):
             frame = rt.market.frame(t.get("underlying") or "NIFTY")
             et, xt = pd.Timestamp(t["entry_ts"]), pd.Timestamp(t["exit_ts"])
             bars = frame[(frame.index >= et.floor("5min")) & (frame.index <= xt)]
-            analysis = post_trade_analysis(t, bars)
+            sym = str(t.get("instrument_symbol") or "")
+            # index candles can't measure an option's excursions: use the trade's own recorded MFE/MAE
+            analysis = post_trade_analysis(t, None if sym.endswith(("CE", "PE")) else bars)
         except Exception:
             log.exception("post-trade analysis failed")
     notes = rt.journal.notes(tid)
@@ -303,8 +305,15 @@ def analytics(request: Request, mode: str | None = None):
     rt = rt_of(request)
     df = rt.journal.trades(mode=mode or None)
     if not df.empty:
-        df = df[df["mode"] != "backtest"]
+        df = df[(df["mode"] != "backtest") & (df["outcome"].fillna("") != "void_restart")]
     perf = performance(df, capital=rt.settings.risk.capital)
+    for key, val in list(perf.items()):      # field names the UI expects
+        if key.startswith("by_") and isinstance(val, dict):
+            for row in val.values():
+                if isinstance(row, dict):
+                    row.setdefault("pnl", row.get("net_pnl") or 0.0)
+                    row.setdefault("expectancy_r", row.get("avg_r"))
+    perf.setdefault("expectancy_r", perf.get("avg_r"))
     try:
         perf["discipline"] = discipline_score(df, rt.settings.risk.max_trades_per_day,
                                               rt.settings.risk.cooldown_after_loss_min,
@@ -425,8 +434,16 @@ def _replay_frame(rt: Any, u: str) -> pd.DataFrame:
 @router.get("/replay/days")
 def replay_days(request: Request, underlying: str = "NIFTY"):
     rt = rt_of(request)
-    days = sorted(set(_replay_frame(rt, _u(underlying)).index.date))
-    return {"days": [d.isoformat() for d in days[-120:]][::-1], "data_source": rt.market.data_source}
+    return {"days": [d.isoformat() for d in _complete_days(rt, _u(underlying))[-120:]][::-1],
+            "data_source": rt.market.data_source}
+
+
+def _complete_days(rt: Any, u: str) -> list[date]:
+    """Sessions available for replay/quiz: today's session is excluded while it is still in progress."""
+    days = sorted(set(_replay_frame(rt, u).index.date))
+    if days and days[-1] == rt.today() and rt.clock.is_market_open():
+        days = days[:-1]
+    return days
 
 
 def _day_session(rt: Any, u: str, day: date):
@@ -449,7 +466,7 @@ async def replay(request: Request, underlying: str = "NIFTY", day: str | None = 
 
     rt = rt_of(request)
     u = _u(underlying)
-    d = date.fromisoformat(day) if day else sorted(set(_replay_frame(rt, u).index.date))[-1]
+    d = date.fromisoformat(day) if day else _complete_days(rt, u)[-1]
     feat, mask = await asyncio.to_thread(_day_session, rt, u, d)
     day_feat = feat[mask]
     pos = {ts: i for i, ts in enumerate(day_feat.index)}
@@ -486,7 +503,7 @@ async def quiz(request: Request, underlying: str = "NIFTY"):
 
     rt = rt_of(request)
     u = _u(underlying)
-    days = sorted(set(_replay_frame(rt, u).index.date))[-100:]
+    days = _complete_days(rt, u)[-100:]
     rng = random.Random()
     for _ in range(25):
         d = rng.choice(days)

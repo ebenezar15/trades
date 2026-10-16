@@ -72,9 +72,11 @@ interface CandleChartProps {
   height?: number;
   /** change this to force a fitContent (e.g. when switching underlying) */
   fitKey?: string;
+  /** keep a fixed window of N bars from the first bar (replay: whole session stays in view) */
+  fixedBars?: number;
 }
 
-export function CandleChart({ candles, overlays, levels, show = {}, markers, lines, live, height = 380, fitKey }: CandleChartProps) {
+export function CandleChart({ candles, overlays, levels, show = {}, markers, lines, live, height = 380, fitKey, fixedBars }: CandleChartProps) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const s = useRef<{
@@ -144,13 +146,15 @@ export function CandleChart({ candles, overlays, levels, show = {}, markers, lin
     const split = (dir: number): Array<LineData | WhitespaceData> => st.map((p) => (p.direction === dir ? { time: t(p.time), value: p.value } : { time: t(p.time) }));
     S.stUp?.setData(split(1));
     S.stDn?.setData(split(-1));
-    if (candles.length && lastFit.current !== (fitKey ?? 'x')) {
+    if (fixedBars && candles.length) {
+      chart.current?.timeScale().setVisibleLogicalRange({ from: -1, to: Math.max(fixedBars, candles.length) + 1 });
+    } else if (candles.length && lastFit.current !== (fitKey ?? 'x')) {
       lastFit.current = fitKey ?? 'x';
       const ts = chart.current?.timeScale();
       if (candles.length > 150) ts?.setVisibleLogicalRange({ from: candles.length - 150, to: candles.length + 4 });
       else ts?.fitContent();
     }
-  }, [candles, overlays, show.ema, show.vwap, show.supertrend, show.volume, fitKey]);
+  }, [candles, overlays, show.ema, show.vwap, show.supertrend, show.volume, fitKey, fixedBars]);
 
   // price lines (levels + extra)
   useEffect(() => {

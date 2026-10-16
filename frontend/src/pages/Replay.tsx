@@ -91,7 +91,7 @@ export default function Replay() {
       {rp.data && (
         <div className="grid gap-3 lg:grid-cols-3">
           <Card className="lg:col-span-2" title={`${u} · ${day}`} right={<span className="font-mono text-xs">{n ? `${idx + 1}/${n} · ${timeIST(rp.data.candles[idx].time)}` : ''}</span>}>
-            <CandleChart candles={candles} markers={markers} lines={lines} show={{ levels: false }} fitKey={`${u}${day}`} height={340} />
+            <CandleChart candles={candles} markers={markers} lines={lines} show={{ levels: false }} fitKey={`${u}${day}`} fixedBars={75} height={340} />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button className="btn" onClick={() => setIdx(0)} aria-label="Start">⏮</button>
               <button className="btn" onClick={() => setIdx((i) => Math.max(0, i - 1))} aria-label="Step back">◀</button>

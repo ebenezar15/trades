@@ -80,7 +80,7 @@ function BacktestModal({ s, onClose }: { s: StrategyInfo; onClose: () => void })
       setBusy(false);
     }
   };
-  const eq = useMemo(() => (res ? [{ type: 'area' as const, data: res.equity, color: '#38bdf8', title: 'Equity (R)' }] : []), [res]);
+  const eq = useMemo(() => (res ? [{ type: 'area' as const, data: res.equity, color: '#38bdf8', title: 'Equity (₹)' }] : []), [res]);
   const folds = (res?.walk_forward.folds ?? []) as Array<Record<string, unknown>>;
   const foldCols = folds.length ? Object.keys(folds[0]) : [];
   return (
@@ -108,7 +108,7 @@ function BacktestModal({ s, onClose }: { s: StrategyInfo; onClose: () => void })
           {res.report.warnings.length > 0 && <ul className="text-sm text-warn">{res.report.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}</ul>}
           <MetricsGrid m={res.metrics} />
           <div>
-            <h3 className="mb-1 text-xs font-semibold uppercase text-muted">Equity (R)</h3>
+            <h3 className="mb-1 text-xs font-semibold uppercase text-muted">Equity (₹, after costs)</h3>
             <SeriesChart series={eq} height={200} />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
