@@ -40,7 +40,8 @@ demo statistics are labelled "SYNTHETIC — not real performance" everywhere.
    on your desktop.
 3. Double-click **IndexEdge** on the desktop. The app opens at <http://localhost:8000>.
 
-Phone: on the same Wi-Fi open `http://<your-PC-IP>:8000` and choose *Add to Home screen*.
+Phone: on the PC open **Settings → Phone access** and scan the QR code with your phone (same Wi-Fi), then
+choose *Add to Home screen*. Only paired devices can open the app.
 Full guide, including SmartAPI app creation, TOTP, the static IP and Telegram: **[docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md)**.
 How to use the app day to day: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
 

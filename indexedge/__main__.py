@@ -62,7 +62,7 @@ def _run(args) -> None:
     url = f"http://localhost:{args.port or s.app.port}"
     if not args.no_browser:
         threading.Timer(2.5, lambda: webbrowser.open(url)).start()
-    print(f"IndexEdge running at {url}  (phone on same Wi-Fi: http://<this-PC-IP>:{args.port or s.app.port})")
+    print(f"IndexEdge running at {url}  (to use your phone: Settings → Phone access → scan the QR code)")
     uvicorn.run("indexedge.app:create_app", factory=True, host=args.host or s.app.host,
                 port=args.port or s.app.port, log_level=s.app.log_level.lower())
 

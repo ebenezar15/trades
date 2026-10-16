@@ -160,7 +160,7 @@ async def positions(request: Request):
 @router.post("/kill-switch")
 async def kill_switch(request: Request):
     res = await rt_of(request).kill_switch()
-    return jsonable({"ok": True, "cancelled": len(res.get("cancelled", []) or []) if isinstance(res.get("cancelled"), list)
+    return jsonable({"ok": bool(res.get("ok", True)), "cancelled": len(res.get("cancelled", []) or []) if isinstance(res.get("cancelled"), list)
                      else res.get("cancelled", 0),
                      "squared_off": len(res.get("squared_off", []) or []) if isinstance(res.get("squared_off"), list)
                      else res.get("squared_off", 0), "detail": res})
@@ -303,7 +303,7 @@ def strategies(request: Request, underlying: str = "NIFTY"):
             rep = {**rep, "metrics": rep.get("metrics") or rep.get("summary") or {}}
         out.append({
             "id": sid, "name": s.name, "description": s.description, "timeframe": s.timeframe,
-            "regimes": info.get("regimes"), "enabled": rt.strategy_enabled(sid),
+            "regimes": info.get("regimes"), "enabled": rt.strategy_enabled(sid, _u(underlying)),
             "enabled_source": "user" if sid in rt.settings.strategies.enabled else "auto",
             "execution_mode": rt.execution_mode(sid).value,
             "params": {k: v for k, v in s.params.items() if isinstance(v, (int, float, str, bool))},
@@ -527,6 +527,11 @@ def get_settings(request: Request):
     data["secrets"] = secrets_status()
     data["can_edit_limits"] = rt.risk.can_edit_limits()
     data["live_confirm_text"] = "I UNDERSTAND THE RISK"
+    from indexedge.api.auth import is_local, lan_ip
+
+    if is_local(request.client.host if request.client else None):
+        port = request.url.port or rt.settings.app.port
+        data["phone_url"] = f"http://{lan_ip()}:{port}/?token={request.app.state.access_token}"
     return jsonable(data)
 
 

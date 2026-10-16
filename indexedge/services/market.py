@@ -61,6 +61,7 @@ class MarketData:
         self.vix: float | None = None
         self.last_tick_at: datetime | None = None
         self.data_source = "synthetic" if demo else "broker"
+        self.sources: dict[str, str] = {}                 # per-underlying history source
         self._token_map: dict[str, str] = {}          # token -> underlying / "VIX" / "FUT:<u>"
         self._sinks: list[TickSink] = []
         self._agg = CandleAggregator(5, self._on_bar_close)
@@ -108,14 +109,14 @@ class MarketData:
                 except Exception:  # noqa: BLE001
                     log.warning("candle store read failed for %s", u)
                 if df is not None and len(set(df.index.date)) >= MIN_SESSIONS:
-                    self.data_source = "broker"
+                    self.sources[u] = "broker"
                 else:
                     log.warning("only %d stored sessions for %s; using synthetic history",
                                 0 if df is None else len(set(df.index.date)), u)
                     df = empty_candles()
             if df is None or df.empty:
                 df = self._synthetic_history(u, days)
-                self.data_source = "synthetic"
+                self.sources[u] = "synthetic"
             self.frames[u] = df.tail(days * 80)
             if not df.empty:
                 before = df[df.index.date < today]
@@ -125,6 +126,7 @@ class MarketData:
                 todays = df[df.index.date == today]
                 if not todays.empty:
                     self.day_open.setdefault(u, float(todays["open"].iloc[0]))
+        self.data_source = "synthetic" if "synthetic" in self.sources.values() else "broker"
         if self.vix is None:
             self.vix = 13.5 if self.demo else None
 

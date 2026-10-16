@@ -66,7 +66,7 @@ class ExecutionSettings(BaseModel):
     chase_interval_s: float = 3.0
     chase_max_attempts: int = 5
     sl_limit_buffer_pct: float = 0.5        # SL-L limit beyond trigger
-    max_orders_per_second: float = 8.0
+    max_orders_per_second: float = Field(default=8.0, gt=0, le=8.0)   # SEBI: stay below 10 OPS
     square_off_minutes_before_cutoff: int = 5
     paper_slippage_ticks: int = 1
     preferred_instrument: str = "option"    # option / future

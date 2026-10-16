@@ -1,3 +1,4 @@
+import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { NewsSource, NotifySettings, RiskSettings, SettingsPatch } from '../api/types';
@@ -87,6 +88,25 @@ function SecretRow({ name, configured, onSaved }: { name: string; configured: bo
   );
 }
 
+function PhoneAccess({ url }: { url: string }) {
+  const [qr, setQr] = useState('');
+  useEffect(() => {
+    QRCode.toDataURL(url, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(''));
+  }, [url]);
+  return (
+    <Card title="Phone access (home Wi-Fi)">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        {qr && <img src={qr} alt="Pairing QR code" className="h-36 w-36 rounded bg-white p-1" />}
+        <div className="min-w-0 flex-1 space-y-1">
+          <p>Scan with your phone (same Wi-Fi) or open the link once. Only paired devices can open IndexEdge.</p>
+          <code className="block break-all rounded bg-panel2 p-1 text-xs">{url}</code>
+          <p className="text-xs text-muted">Keep this link private — it grants full control. Then use “Add to Home screen”.</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function Settings() {
   const { status, reloadStatus } = useApp();
   const s = useApi(api.settings);
@@ -135,8 +155,8 @@ export default function Settings() {
                 <Chip tone={status.broker.logged_in ? 'up' : 'warn'}>{status.broker.logged_in ? 'Logged in today' : 'Not logged in'}</Chip>
                 <Chip tone={status.feed.ws === 'connected' ? 'up' : 'warn'}>Feed: {status.feed.ws}</Chip>
               </div>
-              <div className={cls('rounded-lg border p-2', status.static_ip.ok ? 'border-up/40 bg-up/5' : 'border-down/40 bg-down/10')}>
-                <div className="font-medium">{status.static_ip.ok ? '✓ Static IP OK' : '✕ Static IP mismatch — live orders blocked'}</div>
+              <div className={cls('rounded-lg border p-2', status.static_ip.ok ? 'border-up/40 bg-up/5' : status.static_ip.ok === null ? 'border-line' : 'border-down/40 bg-down/10')}>
+                <div className="font-medium">{status.static_ip.ok ? '✓ Static IP OK' : status.static_ip.ok === null ? 'Static IP not configured (needed only for live orders)' : '✕ Static IP mismatch — live orders blocked'}</div>
                 <div className="font-mono text-xs text-muted">
                   public {status.static_ip.public_ip ?? '?'} · registered {status.static_ip.expected || 'not set'}
                 </div>
@@ -151,6 +171,8 @@ export default function Settings() {
             <Loading />
           )}
         </Card>
+
+        {d?.phone_url && <PhoneAccess url={d.phone_url} />}
 
         <Card title="Trading mode">
           <div className="flex flex-wrap items-center gap-3">

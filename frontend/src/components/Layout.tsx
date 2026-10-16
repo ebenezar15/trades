@@ -86,6 +86,21 @@ function Header() {
           {MOCK ? 'MOCK MODE — UI running on built-in fake data' : 'DEMO MODE — synthetic data, broker not configured'}
         </div>
       )}
+      {!status?.demo_mode && !MOCK && status?.data_source === 'synthetic' && (
+        <div className="border-t border-warn/30 bg-warn/15 px-3 py-1 text-center text-xs font-medium text-warn">
+          Not enough real history downloaded yet — signals are withheld for underlyings without real data
+        </div>
+      )}
+      {status && status.configured_mode === 'live' && status.mode !== 'live' && (
+        <div className="border-t border-down/30 bg-down/15 px-3 py-1 text-center text-xs font-medium text-down">
+          LIVE mode is configured but Angel One is not connected — orders are going to PAPER
+        </div>
+      )}
+      {status?.safe_mode?.active && (
+        <div className="border-t border-down/30 bg-down/15 px-3 py-1 text-center text-xs font-medium text-down">
+          SAFE MODE — new entries paused: {status.safe_mode.reason}
+        </div>
+      )}
       {backendDown && (
         <div className="border-t border-down/30 bg-down/15 px-3 py-1 text-center text-xs font-medium text-down">
           Cannot reach the IndexEdge backend — retrying…

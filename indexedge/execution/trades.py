@@ -160,6 +160,12 @@ class TradeManager:
         self._our_cancels: set[str] = set()
         broker.on_order_update(self._on_order)
 
+    def detach(self) -> None:
+        """Unregister the broker order-update handler (idempotent); call before discarding this manager."""
+        handlers = getattr(self.broker, "_order_handlers", None)
+        while handlers is not None and self._on_order in handlers:
+            handlers.remove(self._on_order)
+
     # ---------------------------------------------------------------------------------- utilities
     @property
     def open_trades(self) -> list[ManagedTrade]:

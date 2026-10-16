@@ -14,15 +14,17 @@
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
-    "dompurify": "3.2.3",
+    "dompurify": "3.4.16",
     "lightweight-charts": "4.2.3",
     "marked": "14.1.4",
+    "qrcode": "1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "6.28.0"
+    "react-router-dom": "6.30.6"
   },
   "devDependencies": {
     "@eslint/js": "9.17.0",
+    "@types/qrcode": "1.5.5",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
     "@vitejs/plugin-react": "4.3.4",

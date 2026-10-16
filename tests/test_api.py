@@ -141,3 +141,18 @@ def test_signal_confirm_paper_trade_and_kill_switch(client):
     assert client.get("/api/status").json()["risk"]["locked"] is True
     assert client.get("/api/positions").json()["open_trades"] == []
     assert client.get("/api/trades").json()["trades"][0]["status"] == "closed"
+
+
+def test_lan_device_needs_pairing(client):
+    from starlette.testclient import TestClient as RawClient
+
+    app = client.app
+    token = app.state.access_token
+    phone = RawClient(app, client=("192.168.1.50", 50000))
+    assert phone.get("/api/status").status_code == 401
+    assert phone.post("/api/kill-switch").status_code == 401
+    r = phone.get(f"/?token={token}", follow_redirects=False)
+    assert r.status_code == 303 and "ie_token" in r.headers["set-cookie"]
+    assert phone.get("/api/status").status_code == 200          # cookie now stored
+    assert "phone_url" not in phone.get("/api/settings").json()  # link only shown on the PC itself
+    assert "phone_url" in client.get("/api/settings").json()

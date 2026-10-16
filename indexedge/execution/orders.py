@@ -90,6 +90,16 @@ class OrderManager:
         self._done: dict[str, asyncio.Event] = {}
         broker.on_order_update(self._on_update)
 
+    def detach(self) -> None:
+        """Unregister the broker order-update handler (idempotent) so a replacement manager can take over."""
+        handlers = getattr(self.broker, "_order_handlers", None)
+        while handlers is not None and self._on_update in handlers:
+            handlers.remove(self._on_update)
+
+    def adopt(self, order: Order) -> Order:
+        """Start tracking an order found in the broker order book (e.g. after a restart)."""
+        return self._track(order)
+
     # ------------------------------------------------------------------------------ bookkeeping
     async def _on_update(self, upd: Order) -> None:
         bid = upd.broker_id

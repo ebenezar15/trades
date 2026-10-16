@@ -14,6 +14,8 @@ with F&O enabled.
    - creates the desktop shortcut;
    - optionally schedules IndexEdge to start at 08:25 on weekdays;
    - optionally adds a firewall rule so your phone on home Wi-Fi can open the app (asks for admin once).
+     Phones must then be paired once: **Settings → Phone access** shows a QR code. Unpaired devices on your
+     network are refused.
 3. Start it with the **IndexEdge** desktop shortcut. Without broker details it runs in **demo mode**.
 
 ## 2. Create your SmartAPI app (Angel One)
@@ -84,5 +86,5 @@ anywhere, not just on home Wi-Fi.
 | "Daily login failed" alert | Check PIN / TOTP secret in Settings; make sure the PC clock is correct (TOTP is time-based). Press *Login for today*. |
 | Live orders blocked: static IP | Your public IP changed or isn't registered. Compare Settings → Static IP with <https://api.ipify.org>. |
 | "External context unavailable or stale" on every signal | Global market data couldn't be fetched (internet / Yahoo Finance down). Signals are blocked by design until it recovers. |
-| Phone can't open the app | Same Wi-Fi? Firewall rule added (re-run installer)? Use the PC's IPv4 from `ipconfig`. |
+| Phone can't open the app / "device not paired" | Same Wi-Fi? Firewall rule added (re-run installer)? Open **Settings → Phone access** on the PC and scan the QR code (pairing link). |
 | Health page shows "safe mode" | Market data stopped. Existing stops stay at the broker; new entries are paused until data resumes. |

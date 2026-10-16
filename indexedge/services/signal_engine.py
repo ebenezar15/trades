@@ -27,6 +27,7 @@ class SignalEngine:
         self.by_id: dict[str, Signal] = {}
         self.features: dict[str, pd.DataFrame] = {}
         self._lock = asyncio.Lock()
+        self._tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------------ features
     def compute_features(self, underlying: str) -> pd.DataFrame:
@@ -61,9 +62,15 @@ class SignalEngine:
 
     # ------------------------------------------------------------------ main hook
     async def on_candle(self, payload: dict) -> None:
+        """Bus handler: runs the scan as a background task so the feed / timer loop never stalls."""
         underlying = payload.get("underlying")
         if underlying is None:
             return
+        task = asyncio.create_task(self._guarded(underlying))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _guarded(self, underlying: str) -> None:
         async with self._lock:
             try:
                 await self._run(underlying)
@@ -72,6 +79,9 @@ class SignalEngine:
 
     async def _run(self, underlying: str) -> list[Signal]:
         rt = self.rt
+        if not rt.market.demo and rt.market.sources.get(underlying) == "synthetic":
+            log.warning("no real history for %s yet — signals withheld", underlying)
+            return []
         feat = await asyncio.to_thread(self.compute_features, underlying)
         if feat.empty:
             return []
@@ -92,7 +102,10 @@ class SignalEngine:
             sig = rt.composer.compose(raw, feat.iloc[-1], context, stats, regime, news=news,
                                       now=rt.clock.now())
             if stats.get("synthetic"):
-                sig.reasons.append(SYNTHETIC_NOTE)
+                sig.reasons.insert(0, SYNTHETIC_NOTE)
+            if sig.status == "active" and not rt.strategy_enabled(sid, underlying):
+                sig.status = "blocked"
+                sig.blocked_reason = f"Strategy not validated for {underlying} (enable it in Strategy Lab to override)"
             await self.publish(sig, strat.name)
             out.append(sig)
         return out
@@ -111,7 +124,9 @@ class SignalEngine:
         if sig.status != "active":
             return
         if mode is ExecutionMode.AUTO:
-            await rt.execute_signal(sig)
+            task = asyncio.create_task(rt.execute_signal(sig))     # order chasing must not block the bus
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
         elif mode is ExecutionMode.CONFIRM:
             rt.confirmations.add(sig)
             sig.status = "pending_confirm"

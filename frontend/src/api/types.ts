@@ -16,7 +16,7 @@ export interface StatusResponse {
   demo_mode: boolean;
   market_open: boolean;
   broker: { connected: boolean; name: string; logged_in: boolean };
-  static_ip: { ok: boolean; public_ip: string | null; expected: string; message: string };
+  static_ip: { ok: boolean | null; public_ip: string | null; expected: string; message: string };
   feed: { last_tick_age_s: number | null; ws: string };
   risk: {
     locked: boolean;
@@ -28,6 +28,12 @@ export interface StatusResponse {
   };
   disclaimer_accepted: boolean;
   server_time: string;
+  /** (ext) */
+  data_source?: 'synthetic' | 'broker' | string;
+  data_sources?: Record<string, string>;
+  configured_mode?: TradingMode;
+  execution_broker?: string;
+  safe_mode?: { active: boolean; reason: string };
 }
 
 // ---------------------------------------------------------------- candles
@@ -504,6 +510,8 @@ export interface SettingsResponse {
   notify: NotifySettings;
   secrets: Record<string, boolean>;
   can_edit_limits: boolean;
+  /** (ext) one-time pairing link for phones on the home Wi-Fi; only returned to the PC itself */
+  phone_url?: string;
   [k: string]: unknown;
 }
 export type SettingsPatch = Partial<{

@@ -38,12 +38,23 @@ class LogBuffer(logging.Handler):
         self.lines: deque[str] = deque(maxlen=n)
         self.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%H:%M:%S"))
 
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            from indexedge.config.secrets import redact
+    _secrets: list[str] = []
+    _secrets_at = -1e9
 
-            self.lines.append(redact(self.format(record)))
-        except Exception:  # noqa: BLE001
+    def emit(self, record: logging.LogRecord) -> None:
+        import time
+
+        try:
+            if time.monotonic() - LogBuffer._secrets_at > 300:
+                from indexedge.config.secrets import SECRET_NAMES, get_secret
+
+                LogBuffer._secrets = [v for v in (get_secret(n) for n in SECRET_NAMES) if v and len(v) >= 4]
+                LogBuffer._secrets_at = time.monotonic()
+            line = self.format(record)
+            for v in LogBuffer._secrets:
+                line = line.replace(v, "***")
+            self.lines.append(line)
+        except Exception:
             pass
 
 
@@ -72,6 +83,7 @@ class Runtime:
         self.broker_errors = 0
         self.jobs: dict[str, dict[str, Any]] = {}
         self._tasks: list[asyncio.Task] = []
+        self._last_reconcile = datetime.now(IST)
         self.scheduler = None
         self.angel = None
         self.limiter = RateLimiter(s.execution.max_orders_per_second)
@@ -84,11 +96,11 @@ class Runtime:
             from indexedge.broker.angel_one import AngelOneBroker
 
             self.angel = AngelOneBroker(s, get_secret, self.clock, master=self.master,
-                                        dry_run=s.execution.mode is not Mode.LIVE,
-                                        order_limiter=self.limiter)
+                                        dry_run=s.execution.mode is not Mode.LIVE)
+            self.angel.block_orders("static IP not verified yet")
             try:
                 await self.angel.connect()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.error("Angel One login failed: %s — continuing with demo data", exc)
                 self.broker_errors += 1
         data_broker = self.angel if (self.angel is not None and self.angel.connected) else None
@@ -112,6 +124,7 @@ class Runtime:
 
         self._build_analytics()
         self._build_execution()
+        self.market.add_tick_sink(lambda t: self.trades.on_tick(t))
         self._wire_bus()
         self._load_reports_cache()
         for u in ("NIFTY", "BANKNIFTY"):
@@ -140,7 +153,7 @@ class Runtime:
                     await asyncio.to_thread(InstrumentMaster.download, self.settings.broker.instrument_master_url,
                                             path)
                 return await asyncio.to_thread(InstrumentMaster.load, path)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 log.error("instrument master download failed: %s", exc)
                 if path.exists():
                     return await asyncio.to_thread(InstrumentMaster.load, path)
@@ -161,7 +174,7 @@ class Runtime:
         self.calendar = EventCalendar(s, self.clock)
         try:
             self.calendar.set_expiries({u: self.master.expiries(u, self.clock.today()) for u in ("NIFTY", "BANKNIFTY")})
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.warning("could not load expiries into calendar")
         if self.market.demo:
             synth = SyntheticProvider(seed=int(self.clock.today().strftime("%Y%m%d")))
@@ -179,7 +192,8 @@ class Runtime:
         self.news = NewsService(s, self.bus, self.clock, store_cb=self.journal.record_news)
         self.telegram = TelegramNotifier(lambda: get_secret("TELEGRAM_BOT_TOKEN"),
                                          s.notify.telegram_chat_id if s.notify.telegram_enabled else "")
-        self.registry = ModelRegistry(self.data_dir / "models")
+        # models live in a separate folder and are only ever trained on real broker data
+        self.registry = ModelRegistry(self.data_dir / "models_real")
         self.risk = RiskEngine(s.risk, self.clock, self.journal, cutoff=s.broker.intraday_cutoff)
         self.strategies = all_strategies(s.strategies.params)
         self._apply_expiry_dates()
@@ -196,7 +210,7 @@ class Runtime:
         for u in ("NIFTY", "BANKNIFTY"):
             try:
                 out[u] = int(self.master.lot_size(u, self.clock.today()))
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         return out
 
@@ -207,7 +221,7 @@ class Runtime:
         try:
             strat.params["expiry_dates"] = set(self.master.expiries("NIFTY")) | set(
                 self.master.expiries("NIFTY", None))
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
     def _build_execution(self) -> None:
@@ -220,11 +234,17 @@ class Runtime:
         self.exec_broker = self.angel if live else self.paper
         if live:
             self.angel.dry_run = False
+        for old in (getattr(self, "trades", None), getattr(self, "orders", None)):
+            if old is not None and hasattr(old, "detach"):
+                old.detach()
         self.orders = OrderManager(self.exec_broker, self.limiter, s, self.journal, bus=self.bus)
         self.trades = TradeManager(self.orders, self.exec_broker, self.journal, self.risk, self.clock, self.bus, s,
                                    calendar=self.calendar)
-        self.market.add_tick_sink(self.trades.on_tick)
-        self.confirmations = PendingConfirmations(self.clock, journal=self.journal)
+        self.trades.mode = "live" if live else "paper"      # journal the *effective* mode
+        if s.execution.mode is Mode.LIVE and not live:
+            log.error("Live mode configured but Angel One is not connected — executing on PAPER")
+        if not hasattr(self, "confirmations"):
+            self.confirmations = PendingConfirmations(self.clock, journal=self.journal)
 
     def _wire_bus(self) -> None:
         self.bus.subscribe(topics.CANDLE, self.signals.on_candle)
@@ -236,21 +256,29 @@ class Runtime:
         """Settings with the *effective* enabled map: the user's choice, else 'validated on real data'."""
         eff = self.settings.model_copy(deep=True)
         enabled: dict[str, bool] = {}
-        nifty = self.reports.get("NIFTY", {})
         for sid in getattr(self, "strategies", {}):
+            # composer gate is per strategy; the per-underlying check happens in the signal engine
             if sid in self.settings.strategies.enabled:
                 enabled[sid] = bool(self.settings.strategies.enabled[sid])
             else:
-                rep = nifty.get(sid) or {}
-                enabled[sid] = rep.get("status") == "validated" and rep.get("data_source") != "synthetic"
+                enabled[sid] = any(self.strategy_enabled(sid, u) for u in ("NIFTY", "BANKNIFTY"))
         eff.strategies.enabled = enabled
         return eff
 
     def refresh_composer_settings(self) -> None:
         self.composer.settings = self._effective_settings()
 
-    def strategy_enabled(self, sid: str) -> bool:
-        return bool(self._effective_settings().strategies.enabled.get(sid))
+    def strategy_enabled(self, sid: str, underlying: str | None = None) -> bool:
+        """User choice wins; otherwise enabled only if validated on REAL data for that underlying
+        (or for both underlyings when ``underlying`` is None)."""
+        if sid in self.settings.strategies.enabled:
+            return bool(self.settings.strategies.enabled[sid])
+        unders = [underlying] if underlying else ["NIFTY", "BANKNIFTY"]
+        for u in unders:
+            rep = self.reports.get(u, {}).get(sid) or {}
+            if not (rep.get("status") == "validated" and rep.get("data_source") != "synthetic"):
+                return False
+        return True
 
     def execution_mode(self, sid: str) -> ExecutionMode:
         m = self.settings.strategies.execution_mode.get(sid)
@@ -268,13 +296,14 @@ class Runtime:
                 self.reports = blob.get("reports", {})
                 self.report_meta = blob.get("meta", {})
                 self.refresh_composer_settings()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("could not read cached strategy reports")
 
     async def refresh_reports(self, days: int = 250) -> None:
         log.info("Validating strategies on %s days of history (runs in background)…", days)
         self.jobs["reports"] = {"status": "running", "started": self.clock.now().isoformat()}
         try:
+            self.lab._cache.clear()
             reports = {}
             for u in ("NIFTY", "BANKNIFTY"):
                 reports[u] = await asyncio.to_thread(self.lab.report_all, u, days)
@@ -292,6 +321,13 @@ class Runtime:
     async def retrain_models(self) -> None:
         from indexedge.services.training import train_all
 
+        self.lab._cache.clear()
+        sources = {u: self.lab.data_source(u, 250) for u in ("NIFTY", "BANKNIFTY")}
+        if any(v != "broker" for v in sources.values()):
+            self.jobs["retrain"] = {"status": "skipped", "at": self.clock.now().isoformat(),
+                                    "reason": "Models are trained only on real broker history (need ≥20 sessions); "
+                                              "until then signals use historical win rates with CI"}
+            return
         self.jobs["retrain"] = {"status": "running", "started": self.clock.now().isoformat()}
         try:
             data = {u: self.lab.candles(250, (u,))[u] for u in ("NIFTY", "BANKNIFTY")}
@@ -375,7 +411,7 @@ class Runtime:
         if self.telegram.configured:
             try:
                 await self.telegram.send(text, buttons)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("telegram send failed")
 
     async def notify_signal(self, sig: Signal, payload: dict, confirm: bool) -> None:
@@ -383,6 +419,8 @@ class Runtime:
             return
         p = payload.get("probability")
         prob = f"{p * 100:.0f}% (n={payload.get('sample_size')})" if p is not None else "insufficient data"
+        if any("SYNTHETIC" in r for r in sig.reasons):
+            prob += " — SYNTHETIC demo stats, not real"
         text = (f"📈 {payload.get('strategy_name')} — {sig.raw.side.value} {sig.raw.underlying}\n"
                 f"Entry {sig.raw.entry:,.1f}  SL {sig.raw.stop:,.1f}  T {', '.join(f'{t:,.1f}' for t in sig.raw.targets)}\n"
                 f"Probability {prob} · R:R {sig.expected_rr:.2f} · EV ₹{sig.ev_per_trade:,.0f}\n"
@@ -430,10 +468,7 @@ class Runtime:
         if not self.reports:
             await self.refresh_reports()
         if self.trades.open_trades or not self.market.demo:
-            try:
-                await self.trades.reconcile(self.master)
-            except Exception:
-                log.exception("startup reconcile failed")
+            await self.reconcile()
 
     async def _timer_loop(self) -> None:
         while True:
@@ -446,14 +481,27 @@ class Runtime:
                 age = self.market.feed_age_s()
                 if (self.clock.is_market_open() and age is not None and age > 60 and self.trades.open_trades
                         and not self.trades.safe_mode):
-                    await self.trades.enter_safe_mode(f"Market data feed stale for {age:.0f}s")
+                    await self.trades.enter_safe_mode(f"Market data feed stale for {age:.0f}s", kind="stale_feed")
                 elif self.trades.safe_mode and age is not None and age < 5:
-                    self.trades.exit_safe_mode()
+                    self.trades.exit_safe_mode(kind="stale_feed")     # other causes need a reconcile/manual clear
+                if self.trades.safe_mode and (self.clock.now() - self._last_reconcile).total_seconds() > 60:
+                    await self.reconcile()
                 await self.bus.publish(topics.HEALTH, self.health(brief=True))
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.exception("timer loop error")
+
+    async def reconcile(self) -> dict:
+        self._last_reconcile = self.clock.now()
+        try:
+            res = await self.trades.reconcile(self.master)
+            self.jobs["reconcile"] = {"status": "ok", "at": self._last_reconcile.isoformat()}
+            return res if isinstance(res, dict) else {"ok": True}
+        except Exception as exc:  # noqa: BLE001
+            log.exception("reconcile failed")
+            self.jobs["reconcile"] = {"status": "error", "error": str(exc)}
+            return {"ok": False, "error": str(exc)}
 
     async def daily_login(self) -> None:
         if self.angel is None:
@@ -465,12 +513,18 @@ class Runtime:
                                     self.data_dir / "OpenAPIScripMaster.json")
             self.master = await asyncio.to_thread(InstrumentMaster.load, self.data_dir / "OpenAPIScripMaster.json")
             self.jobs["daily_login"] = {"status": "ok", "at": self.clock.now().isoformat()}
-        except Exception as exc:  # noqa: BLE001
+            if self.settings.execution.mode is Mode.LIVE and self.exec_broker is not self.angel and \
+                    not self.trades.open_trades:
+                self._build_execution()
+                await self.bus.publish(topics.ALERT, {"level": "warning", "title": "Live execution restored",
+                                                      "message": "Angel One connected; orders now go live"})
+        except Exception as exc:
             self.broker_errors += 1
             self.jobs["daily_login"] = {"status": "error", "error": str(exc)}
             await self.bus.publish(topics.ALERT, {"level": "error", "title": "Daily login failed — use 'Login for today'",
                                                   "message": str(exc)})
         await self.check_ip()
+        await self.reconcile()
 
     async def login_now(self) -> dict:
         if not self.broker_configured:
@@ -488,12 +542,11 @@ class Runtime:
         else:
             try:
                 self.static_ip = await check_static_ip(exp, self.settings.broker.ip_check_url)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self.static_ip = {"ok": False, "public_ip": None, "expected": exp, "message": str(exc)}
         if self.angel is not None:
             block = None if self.static_ip.get("ok") else f"static IP check failed: {self.static_ip.get('message')}"
-            if self.settings.execution.mode is Mode.LIVE:
-                self.angel.block_orders(block)
+            self.angel.block_orders(block)
         return self.static_ip
 
     async def premarket_job(self) -> None:
@@ -526,11 +579,14 @@ class Runtime:
         positions = []
         try:
             positions = list(self.paper._positions.values()) if self.exec_broker is self.paper else []
-        except Exception:  # noqa: BLE001
+        except Exception:
             positions = []
         age = self.market.feed_age_s()
         return {
-            "mode": s.execution.mode.value,
+            "mode": "live" if self.exec_broker is self.angel and self.angel is not None else "paper",
+            "configured_mode": s.execution.mode.value,
+            "execution_broker": getattr(self.exec_broker, "name", "paper"),
+            "data_sources": dict(self.market.sources),
             "demo_mode": self.market.demo,
             "data_source": self.market.data_source,
             "market_open": self.clock.is_market_open(),
@@ -581,18 +637,18 @@ class Runtime:
         for svc in (self.context, self.news, self.telegram):
             try:
                 svc.stop()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         await self.market.stop()
         try:
             await self.news.aclose()
             await self.telegram.aclose()
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         if self.angel is not None:
             try:
                 await self.angel.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         self.journal.close()
         logging.getLogger().removeHandler(self.logbuf)
