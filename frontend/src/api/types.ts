@@ -268,7 +268,7 @@ export interface TradeRow {
   entry_price: number;
   stop: number;
   targets: number[];
-  mode: 'paper' | 'live' | 'backtest';
+  mode: 'paper' | 'live' | 'backtest' | 'manual';
   status: 'open' | 'closed';
   exit_ts?: string | null;
   exit_price?: number | null;
@@ -282,6 +282,10 @@ export interface TradeRow {
   reasons?: string[] | null;
   context?: Record<string, unknown> | null;
   ltp?: number | null; // (ext) for open trades
+  /** (Iteration 3) manual trades: e.g. "STOP HIT — exit now on Angel One" / "TARGET 1 REACHED" */
+  alert?: string | null;
+  /** (Iteration 3) manual trades: the same plan expressed in index (underlying) points */
+  index_levels?: IndexLevels | null;
 }
 export interface TradesResponse {
   trades: TradeRow[];
@@ -535,6 +539,8 @@ export interface SettingsResponse {
   can_edit_limits: boolean;
   /** (ext) one-time pairing link for phones on the home Wi-Fi; only returned to the PC itself */
   phone_url?: string;
+  /** (ext, Iteration 3) 6-digit first-password setup code; only returned to the PC itself while no password exists */
+  setup_code?: string | null;
   [k: string]: unknown;
 }
 export type SettingsPatch = Partial<{
@@ -662,3 +668,75 @@ export type WsMessage =
   | { type: 'health'; data: Partial<HealthResponse> }
   | { type: 'alert'; data: AlertData }
   | { type: 'agent'; data: AgentLogEntry };
+
+// ---------------------------------------------------------------- auth (Iteration 3)
+export interface AuthStatus {
+  logged_in: boolean;
+  /** request comes from the PC itself (loopback, no proxy headers) */
+  local: boolean;
+  /** no password has been created yet */
+  needs_setup: boolean;
+  username: string | null;
+  remote_url: string | null;
+}
+export interface AuthSetupRequest {
+  username: string;
+  password: string;
+  /** 6-digit code shown on the PC; required when not local */
+  setup_code?: string;
+}
+export interface AuthLoginRequest {
+  username: string;
+  password: string;
+}
+export interface ChangePasswordRequest {
+  current: string;
+  new: string;
+}
+
+// ---------------------------------------------------------------- remote access (Iteration 3)
+export type RemoteState = 'off' | 'starting' | 'on' | 'error';
+export interface RemoteStatus {
+  enabled: boolean;
+  status: RemoteState;
+  url: string | null;
+  message: string;
+  password_set: boolean;
+}
+
+// ---------------------------------------------------------------- manual execution (Iteration 3)
+export interface IndexLevels {
+  entry: number;
+  stop: number;
+  targets: number[];
+}
+export interface TradeTicket {
+  signal_id: string;
+  strategy_name: string;
+  underlying: Underlying;
+  exchange: 'NFO' | string;
+  symbol: string;
+  side: Side;
+  lots: number;
+  lot_size: number;
+  quantity: number;
+  product: 'INTRADAY' | string;
+  order_type: 'LIMIT' | string;
+  ltp: number | null;
+  limit_price: number;
+  stop_trigger: number;
+  stop_limit: number;
+  target: number;
+  premium_basis: 'option' | 'future';
+  index_levels: IndexLevels | null;
+  notes: string[];
+  steps: string[];
+}
+export interface ManualEntryRequest {
+  fill_price: number;
+  quantity: number;
+}
+export interface ManualEntryResponse {
+  ok: boolean;
+  trade_id: string;
+}

@@ -5,6 +5,7 @@ import type { Candle, IndexOverview, Position, TradeRow } from '../api/types';
 import { useWsMessages } from '../api/ws';
 import { CandleChart } from '../components/charts';
 import { KillSwitch } from '../components/KillSwitch';
+import { ManualTradesPanel } from '../components/ManualTrades';
 import { SignalCard, isPendingConfirm } from '../components/signals';
 import { BiasMeter, Card, Chip, Empty, ErrorBox, Loading, Meter } from '../components/ui';
 import { useApp } from '../lib/app-context';
@@ -107,10 +108,10 @@ export default function Dashboard() {
       }
       if (m.type === 'signal') void signals.reload();
       if (m.type === 'context') ctx.setData(m.data);
-      if (m.type === 'trade' || m.type === 'order') void positions.reload();
+      if (m.type === 'trade' || m.type === 'order' || m.type === 'alert') void positions.reload();
       if ((m.type === 'signal' || m.type === 'trade') && m.data.underlying === u) scheduleCandleRefetch();
     },
-    ['tick', 'candle', 'signal', 'context', 'trade', 'order'],
+    ['tick', 'candle', 'signal', 'context', 'trade', 'order', 'alert'],
   );
 
   const ix = overview.data?.indices.find((i) => i.underlying === u);
@@ -154,6 +155,16 @@ export default function Dashboard() {
             </>
           )}
         </div>
+      )}
+
+      {positions.data && (
+        <ManualTradesPanel
+          trades={positions.data.open_trades}
+          onChanged={() => {
+            void positions.reload();
+            void signals.reload();
+          }}
+        />
       )}
 
       <div className="grid gap-3 lg:grid-cols-3">
@@ -252,13 +263,21 @@ export default function Dashboard() {
           )}
           <div className="grid gap-2 xl:grid-cols-2">
             {activeSignals.map((s) => (
-              <SignalCard key={s.id} s={s} compact onChanged={signals.reload} />
+              <SignalCard
+                key={s.id}
+                s={s}
+                compact
+                onChanged={() => {
+                  void signals.reload();
+                  void positions.reload();
+                }}
+              />
             ))}
           </div>
         </div>
         <div>
           {positions.data ? (
-            <Positions positions={positions.data.positions} trades={positions.data.open_trades} />
+            <Positions positions={positions.data.positions} trades={positions.data.open_trades.filter((t) => t.mode !== 'manual')} />
           ) : positions.error ? (
             <ErrorBox error={positions.error} onRetry={positions.reload} />
           ) : (

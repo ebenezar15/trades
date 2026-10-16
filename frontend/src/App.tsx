@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { wsManager } from './api/ws';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { AppProvider } from './lib/app-context';
+import { AuthGate } from './lib/auth';
 import Dashboard from './pages/Dashboard';
 
 const Signals = lazy(() => import('./pages/Signals'));
@@ -23,9 +23,9 @@ const Agent = lazy(() => import('./pages/Agent'));
 const Connect = lazy(() => import('./pages/Connect'));
 
 export default function App() {
-  useEffect(() => wsManager.start(), []);
   return (
     <BrowserRouter>
+      <AuthGate>
       <AppProvider>
         <Layout>
           <Suspense fallback={<Loading />}>
@@ -51,6 +51,7 @@ export default function App() {
           </Suspense>
         </Layout>
       </AppProvider>
+      </AuthGate>
     </BrowserRouter>
   );
 }

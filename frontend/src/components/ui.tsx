@@ -151,7 +151,7 @@ export function Modal({ open, onClose, title, children, footer, wide, dismissabl
       <div
         role="dialog"
         aria-modal="true"
-        className={cls('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl sm:rounded-2xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-md')}
+        className={cls('max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-line bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-md')}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-2">
@@ -201,7 +201,7 @@ export function Toggle({ checked, onChange, disabled, label }: { checked: boolea
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cls('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-line transition disabled:opacity-50', checked ? 'bg-up' : 'bg-panel2')}
+      className={cls("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-line transition before:absolute before:-inset-2.5 before:content-[''] disabled:opacity-50", checked ? 'bg-up' : 'bg-panel2')}
     >
       <span className={cls('inline-block h-4 w-4 rounded-full bg-white shadow transition', checked ? 'translate-x-6' : 'translate-x-1')} />
     </button>
@@ -216,7 +216,7 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={cls('whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold transition', value === o.value ? 'bg-panel text-fg shadow' : 'text-muted')}
+          className={cls('seg-btn whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold transition', value === o.value ? 'bg-panel text-fg shadow' : 'text-muted')}
         >
           {o.label}
         </button>

@@ -81,7 +81,8 @@ class WsManager {
     }, delay);
   }
 
-  private reconnectNow() {
+  /** Reconnect immediately if closed (e.g. right after logging in). */
+  reconnectNow() {
     if (this.state !== 'closed') return;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;

@@ -9,7 +9,10 @@ import type {
   CandleMarker,
   TradeLine,
   AnalyticsResponse,
+  AuthStatus,
   BacktestResponse,
+  RemoteStatus,
+  TradeTicket,
   Candle,
   CandlesResponse,
   ContextSnapshot,
@@ -277,7 +280,145 @@ const state = {
   brokerConnected: false,
   agentEnabled: true,
   agentLog: null as AgentLogEntry[] | null,
+  remote: { enabled: false, status: 'off', url: null, message: 'Remote access is off', startedAt: 0 } as Omit<RemoteStatus, 'password_set'> & { startedAt: number },
 };
+
+// ---------------------------------------------------------------- auth (Iteration 3)
+// Pick a scenario with ?mock_auth=login | setup | local | local_setup | ok (remembered in localStorage).
+interface MockAuth {
+  password_set: boolean;
+  local: boolean;
+  session: boolean;
+  username: string;
+  password: string;
+  failures: number[];
+}
+const MOCK_SETUP_CODE = '123456';
+export const MOCK_PASSWORD = 'demo1234';
+const auth: MockAuth = (() => {
+  const base: MockAuth = { password_set: true, local: false, session: true, username: 'trader', password: MOCK_PASSWORD, failures: [] };
+  try {
+    const sc = new URLSearchParams(location.search).get('mock_auth');
+    if (sc) {
+      const presets: Record<string, Partial<MockAuth>> = {
+        login: { password_set: true, local: false, session: false },
+        setup: { password_set: false, local: false, session: false },
+        local: { password_set: true, local: true, session: false },
+        local_setup: { password_set: false, local: true, session: false },
+        ok: { password_set: true, local: false, session: true },
+      };
+      const a = { ...base, ...(presets[sc] ?? {}) };
+      localStorage.setItem('ie-mock-auth', JSON.stringify(a));
+      return a;
+    }
+    const saved = localStorage.getItem('ie-mock-auth');
+    if (saved) return { ...base, ...JSON.parse(saved), failures: [] };
+  } catch {
+    /* ignore */
+  }
+  return base;
+})();
+function saveAuth() {
+  try {
+    localStorage.setItem('ie-mock-auth', JSON.stringify({ ...auth, failures: [] }));
+  } catch {
+    /* ignore */
+  }
+}
+class MockHttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+const loggedIn = () => auth.local || (auth.password_set && auth.session);
+function authStatus(): AuthStatus {
+  return {
+    logged_in: loggedIn(),
+    local: auth.local,
+    needs_setup: !auth.password_set,
+    username: auth.password_set ? auth.username : null,
+    remote_url: state.remote.status === 'on' ? state.remote.url : null,
+  };
+}
+function remoteStatus(): RemoteStatus {
+  const r = state.remote;
+  if (r.status === 'starting' && now() - r.startedAt > 2500) {
+    r.status = 'on';
+    r.url = 'https://quiet-river-delta-4821.trycloudflare.com';
+    r.message = 'Tunnel up — link also sent to Telegram';
+  }
+  return { enabled: r.enabled, status: r.status, url: r.url, message: r.message, password_set: auth.password_set };
+}
+
+// ---------------------------------------------------------------- manual execution (Iteration 3)
+function premiumFor(symbol: string) {
+  const r = rng(symbol.length * 97 + symbol.charCodeAt(symbol.length - 3));
+  return round((symbol.startsWith('BANK') ? 260 : 110) + r() * 60, 1);
+}
+const tick = (v: number) => Math.round(v * 20) / 20; // 0.05 tick size
+function ticket(id: string): TradeTicket {
+  const s = makeSignals().find((x) => x.id === id);
+  if (!s) throw new MockHttpError(404, 'signal not found');
+  const sym = s.instrument?.symbol ?? `${s.underlying}FUT`;
+  const lotSize = s.instrument?.lot_size ?? (s.underlying === 'NIFTY' ? 75 : 30);
+  const lots = Math.max(1, Math.round(s.quantity / lotSize));
+  const short = s.strategy_id === 'expiry_straddle';
+  const side = short ? 'SELL' : 'BUY';
+  const prem = premiumFor(sym);
+  const limit = tick(prem + (short ? -0.5 : 0.5));
+  const riskPts = tick(Math.abs(s.entry - s.stop) * 0.5);
+  const rewardPts = tick(Math.abs((s.targets[0] ?? s.entry) - s.entry) * 0.5);
+  const stopTrigger = tick(short ? limit + riskPts : limit - riskPts);
+  const stopLimit = tick(short ? stopTrigger + 1 : stopTrigger - 1);
+  const target = tick(short ? limit - rewardPts : limit + rewardPts);
+  const exitSide = short ? 'BUY' : 'SELL';
+  const f = (v: number) => v.toFixed(2);
+  return {
+    signal_id: s.id, strategy_name: s.strategy_name, underlying: s.underlying, exchange: 'NFO', symbol: sym, side,
+    lots, lot_size: lotSize, quantity: lots * lotSize, product: 'INTRADAY', order_type: 'LIMIT', ltp: prem,
+    limit_price: limit, stop_trigger: stopTrigger, stop_limit: stopLimit, target, premium_basis: 'option',
+    index_levels: { entry: s.entry, stop: s.stop, targets: s.targets },
+    notes: [
+      'Option prices are estimated from the index plan (delta ≈ 0.5) — the index levels below are the real plan.',
+      `Don't chase: if the premium has moved more than 3% above ${f(limit)}, skip the trade.`,
+      'IndexEdge alerts you here and on Telegram when the stop or target is reached.',
+    ],
+    steps: [
+      `In Angel One on the PC, search ${sym} and tap ${side}.`,
+      `Choose INTRADAY · LIMIT · qty ${lots * lotSize} · price ${f(limit)} and place the order.`,
+      `When it fills, place the stop: ${exitSide} · SL-L · trigger ${f(stopTrigger)} · price ${f(stopLimit)}.`,
+      `Optional: ${exitSide} LIMIT at ${f(target)} for the target (cancel the stop if it fills).`,
+      'Come back here and tap “I placed this trade” so IndexEdge can track it.',
+    ],
+  };
+}
+let manualN = 102;
+function manualEntry(id: string, fill: number, qty: number) {
+  const tk = ticket(id);
+  const s = makeSignals().find((x) => x.id === id)!;
+  const tid = `M${++manualN}`;
+  trades().unshift({
+    id: tid, signal_id: id, strategy_id: s.strategy_id, underlying: s.underlying, instrument_symbol: tk.symbol,
+    side: tk.side, qty, entry_ts: isoIST(Math.floor(now() / 1000)), entry_price: fill, stop: tk.stop_trigger,
+    targets: [tk.target], mode: 'manual', status: 'open', ltp: fill, pnl: 0, alert: null, index_levels: tk.index_levels,
+    reasons: s.reasons,
+  });
+  state.signalStatus[id] = 'taken';
+  return { ok: true, trade_id: tid };
+}
+function manualExit(id: string, exit: number) {
+  const t = trades().find((x) => x.id === id);
+  if (!t) throw new MockHttpError(404, 'trade not found');
+  if (t.status !== 'open') throw new MockHttpError(409, 'trade already closed');
+  const dir = t.side === 'BUY' ? 1 : -1;
+  const risk = Math.abs(t.entry_price - t.stop) || 1;
+  Object.assign(t, {
+    status: 'closed', exit_price: exit, exit_ts: isoIST(Math.floor(now() / 1000)), alert: null,
+    pnl: round((exit - t.entry_price) * dir * t.qty - 60), costs: 60, r_multiple: round(((exit - t.entry_price) * dir) / risk),
+    outcome: (exit - t.entry_price) * dir > 0 ? 'manual_target' : 'manual_stop',
+  });
+  return { ok: true };
+}
 
 // ---------------------------------------------------------------- strategies
 const LEARN: Record<string, string> = {
@@ -505,6 +646,25 @@ function makeTrades(): TradeRow[] {
     instrument_symbol: 'NIFTY20OCT2625100CE', side: 'BUY', qty: 75, entry_ts: isoIST(today + 3000),
     entry_price: 142.5, stop: 118, targets: [167, 191], mode: 'paper', status: 'open', ltp: 156.2,
     pnl: round((156.2 - 142.5) * 75), reasons: ['EMA9 crossed above EMA21', 'Supertrend flipped green'],
+  });
+  // Iteration 3: trades the user placed by hand on Angel One (journaled via "I placed this trade")
+  const n = ltp('NIFTY');
+  const bn = ltp('BANKNIFTY');
+  out.push({
+    id: 'M101', signal_id: 'sig-007', strategy_id: 'vwap_pullback', underlying: 'NIFTY',
+    instrument_symbol: 'NIFTY20OCT2625200CE', side: 'BUY', qty: 75, entry_ts: isoIST(today + 4200),
+    entry_price: 128.4, stop: 105, targets: [152, 176], mode: 'manual', status: 'open', ltp: 103.1,
+    pnl: round((103.1 - 128.4) * 75), alert: 'STOP HIT — exit now on Angel One',
+    index_levels: { entry: round(n + 34), stop: round(n + 4), targets: [round(n + 70), round(n + 104)] },
+    reasons: ['Price above VWAP and EMA9 > EMA21', 'Bullish pin bar at VWAP'],
+  });
+  out.push({
+    id: 'M102', signal_id: 'sig-008', strategy_id: 'squeeze_breakout', underlying: 'BANKNIFTY',
+    instrument_symbol: 'BANKNIFTY28OCT2656400CE', side: 'BUY', qty: 30, entry_ts: isoIST(today + 5400),
+    entry_price: 310, stop: 268, targets: [355, 400], mode: 'manual', status: 'open', ltp: 362.5,
+    pnl: round((362.5 - 310) * 30), alert: 'TARGET 1 REACHED — book profit on Angel One',
+    index_levels: { entry: round(bn - 110), stop: round(bn - 200), targets: [round(bn - 10), round(bn + 90)] },
+    reasons: ['Bollinger inside Keltner for 9 bars', 'Close above upper band'],
   });
   return out.reverse();
 }
@@ -831,6 +991,7 @@ function settings(): SettingsResponse {
     notify: { telegram_enabled: false, telegram_chat_id: '', notify_signals: true, notify_high_impact_news: true, notify_eod: true },
     secrets: { ...state.secrets },
     can_edit_limits: false,
+    setup_code: auth.local && !auth.password_set ? MOCK_SETUP_CODE : null,
   };
 }
 function health(): HealthResponse {
@@ -979,8 +1140,55 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
   const b = (body ?? {}) as Record<string, unknown>;
   let m: RegExpMatchArray | null;
 
+  // ---- auth (always public)
+  if (p.startsWith('/api/auth/')) {
+    switch (`${method} ${p}`) {
+      case 'GET /api/auth/status': return authStatus();
+      case 'POST /api/auth/login': {
+        const t = now();
+        auth.failures = auth.failures.filter((x) => t - x < 15 * 60_000);
+        if (auth.failures.length >= 5) throw new MockHttpError(429, 'Too many failed attempts — try again in 15 minutes');
+        if (!auth.password_set) throw new MockHttpError(400, 'no password set yet');
+        if (String(b.username ?? '').trim().toLowerCase() !== auth.username.toLowerCase() || b.password !== auth.password) {
+          auth.failures.push(t);
+          if (auth.failures.length >= 5) throw new MockHttpError(429, 'Too many failed attempts — try again in 15 minutes');
+          throw new MockHttpError(401, 'invalid username or password');
+        }
+        auth.failures = [];
+        auth.session = true;
+        saveAuth();
+        return { ok: true };
+      }
+      case 'POST /api/auth/setup': {
+        if (auth.password_set) throw new MockHttpError(409, 'a password is already set');
+        if (!auth.local && String(b.setup_code ?? '').trim() !== MOCK_SETUP_CODE) throw new MockHttpError(403, 'wrong setup code — use the 6-digit code shown on the PC');
+        if (String(b.password ?? '').length < 8) throw new MockHttpError(400, 'password must be at least 8 characters');
+        auth.username = String(b.username || 'trader').trim();
+        auth.password = String(b.password);
+        auth.password_set = true;
+        auth.session = true;
+        saveAuth();
+        return { ok: true };
+      }
+      case 'POST /api/auth/logout':
+        auth.session = false;
+        saveAuth();
+        return { ok: true };
+      case 'POST /api/auth/password':
+        if (!loggedIn()) throw new MockHttpError(401, 'login required');
+        if (b.current !== auth.password) throw new MockHttpError(400, 'current password is wrong');
+        if (String(b.new ?? '').length < 8) throw new MockHttpError(400, 'password must be at least 8 characters');
+        auth.password = String(b.new);
+        saveAuth();
+        return { ok: true };
+    }
+  }
+  if (!loggedIn()) throw new MockHttpError(401, 'login required');
+
   if (method === 'GET') {
+    if ((m = p.match(/^\/api\/signals\/([^/]+)\/ticket$/))) return ticket(decodeURIComponent(m[1]));
     switch (p) {
+      case '/api/remote': return remoteStatus();
       case '/api/status': return status();
       case '/api/candles': return candlesResp(q('underlying') ?? 'NIFTY', Number(q('limit') ?? 500));
       case '/api/overview':
@@ -997,7 +1205,14 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
       }
       case '/api/positions': {
         const open = trades().filter((t) => t.status === 'open');
-        return { positions: open.map((t) => ({ symbol: t.instrument_symbol, qty: t.qty, avg_price: t.entry_price, ltp: t.ltp ?? t.entry_price, pnl: t.pnl ?? 0 })), open_trades: open };
+        // manual trades: wiggle the premium a little so the panel looks live
+        open.filter((t) => t.mode === 'manual' && t.ltp != null).forEach((t) => {
+          const w = round(Math.sin(now() / 4000 + t.id.length) * 0.6, 2);
+          const base = t.id === 'M101' ? 103.1 : t.id === 'M102' ? 362.5 : t.entry_price;
+          t.ltp = round(base + w, 2);
+          t.pnl = round((t.ltp - t.entry_price) * (t.side === 'BUY' ? 1 : -1) * t.qty);
+        });
+        return { positions: open.filter((t) => t.mode !== 'manual').map((t) => ({ symbol: t.instrument_symbol, qty: t.qty, avg_price: t.entry_price, ltp: t.ltp ?? t.entry_price, pnl: t.pnl ?? 0 })), open_trades: open };
       }
       case '/api/option-chain': return optionChain(q('underlying') ?? 'NIFTY', q('expiry'));
       case '/api/news': return { items: news().slice(0, Number(q('limit') ?? 50)) };
@@ -1006,8 +1221,9 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
         const s = q('strategy');
         const start = q('start');
         const end = q('end');
+        const mode = q('mode');
         return {
-          trades: trades().filter((t) => (!s || t.strategy_id === s) && (!start || t.entry_ts.slice(0, 10) >= start) && (!end || t.entry_ts.slice(0, 10) <= end)),
+          trades: trades().filter((t) => (!s || t.strategy_id === s) && (!mode || t.mode === mode) && (!start || t.entry_ts.slice(0, 10) >= start) && (!end || t.entry_ts.slice(0, 10) <= end)),
         };
       }
       case '/api/analytics': return analytics();
@@ -1052,6 +1268,17 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
   }
 
   if (method === 'POST' || method === 'PUT') {
+    if ((m = p.match(/^\/api\/signals\/([^/]+)\/manual-entry$/))) {
+      const fill = Number(b.fill_price);
+      const qty = Number(b.quantity);
+      if (!(fill > 0) || !(qty > 0)) throw new MockHttpError(400, 'fill_price and quantity must be positive');
+      return manualEntry(decodeURIComponent(m[1]), fill, qty);
+    }
+    if ((m = p.match(/^\/api\/trades\/([^/]+)\/manual-exit$/))) {
+      const px = Number(b.exit_price);
+      if (!(px > 0)) throw new MockHttpError(400, 'exit_price must be positive');
+      return manualExit(decodeURIComponent(m[1]), px);
+    }
     if ((m = p.match(/^\/api\/signals\/([^/]+)\/(confirm|skip)$/))) {
       state.signalStatus[decodeURIComponent(m[1])] = m[2] === 'confirm' ? 'taken' : 'skipped';
       return { ok: true };
@@ -1065,6 +1292,13 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
       return { ok: true };
     }
     switch (p) {
+      case '/api/remote': {
+        if (b.enabled && !auth.password_set) throw new MockHttpError(400, 'set a password first — remote access requires a login');
+        const r = state.remote;
+        if (b.enabled) Object.assign(r, { enabled: true, status: 'starting', url: null, message: 'Starting Cloudflare quick tunnel…', startedAt: now() });
+        else Object.assign(r, { enabled: false, status: 'off', url: null, message: 'Remote access is off' });
+        return remoteStatus();
+      }
       case '/api/kill-switch':
         state.locked = true;
         state.lockReason = 'Kill switch activated';
@@ -1134,6 +1368,10 @@ export function mockTick(): WsMessage[] {
     agentLog().unshift(e);
     agentLog().splice(300);
     out.push({ type: 'agent', data: e });
+  }
+  if (tickN === 4 || tickN % 120 === 0) {
+    const t = trades().find((x) => x.id === 'M101' && x.status === 'open');
+    if (t) out.push({ type: 'alert', data: { level: 'critical', title: t.instrument_symbol, message: 'STOP HIT — exit now on Angel One' } });
   }
   if (tickN % 5 === 0) out.push({ type: 'health', data: { last_tick_age_s: 0.5, latency_ms: 30 + (tickN % 20) } });
   return out;

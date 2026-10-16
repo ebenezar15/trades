@@ -38,6 +38,8 @@ body {
   @apply bg-bg text-fg antialiased;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   overflow-x: hidden;
 }
 
@@ -86,6 +88,68 @@ body {
 
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+/* full-screen pages (login, splash) when launched from the home screen with a translucent status bar */
+.safe-screen {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+.px-safe {
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+@media (min-width: 640px) {
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+.input-lg {
+  @apply h-12 px-3 text-base;
+}
+
+/* Touch devices (iPad / phone): ≥44px tap targets, 16px inputs (no iOS focus zoom). */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+    @apply px-3.5;
+  }
+  .input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  select.input {
+    font-size: 16px;
+  }
+  .seg-btn {
+    min-height: 40px;
+    @apply px-3 text-sm;
+  }
+  .nav-link {
+    min-height: 44px;
+  }
+}
+
+@keyframes alert-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--down) / 0.6);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgb(var(--down) / 0);
+    filter: brightness(1.25);
+  }
+}
+.alert-pulse {
+  animation: alert-pulse 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .alert-pulse {
+    animation: none;
+  }
 }
 .prose-md h1,
 .prose-md h2,

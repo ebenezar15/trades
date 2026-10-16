@@ -6,6 +6,14 @@ import type {
   BrokerSetupResponse,
   BrokerTestResponse,
   AnalyticsResponse,
+  AuthLoginRequest,
+  AuthSetupRequest,
+  AuthStatus,
+  ChangePasswordRequest,
+  ManualEntryRequest,
+  ManualEntryResponse,
+  RemoteStatus,
+  TradeTicket,
   BacktestRequest,
   BacktestResponse,
   CandlesResponse,
@@ -59,13 +67,37 @@ function qs(q?: Query): string {
   return s ? `?${s}` : '';
 }
 
+type UnauthorizedHandler = () => void;
+let onUnauthorized: UnauthorizedHandler | null = null;
+/** Register the app-wide 401 handler (the auth gate re-checks /api/auth/status and shows Login). */
+export function setUnauthorizedHandler(h: UnauthorizedHandler | null) {
+  onUnauthorized = h;
+}
+
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  try {
+    return await rawRequest<T>(method, path, body);
+  } catch (e) {
+    // auth endpoints report bad credentials as 401 themselves — only other endpoints mean "session gone"
+    if (e instanceof ApiError && e.status === 401 && !path.startsWith('/api/auth/')) onUnauthorized?.();
+    throw e;
+  }
+}
+
+async function rawRequest<T>(method: Method, path: string, body?: unknown): Promise<T> {
   if (MOCK) {
     const { mockRequest } = await import('./mock');
-    return mockRequest(method, path, body) as Promise<T>;
+    try {
+      return (await mockRequest(method, path, body)) as T;
+    } catch (e) {
+      const st = (e as { status?: number }).status;
+      if (typeof st === 'number') throw new ApiError(st, e instanceof Error ? e.message : String(e));
+      throw e;
+    }
   }
   const res = await fetch(path, {
     method,
+    credentials: 'same-origin',
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -108,7 +140,7 @@ export const api = {
   news: (limit = 50) => get<NewsResponse>('/api/news', { limit }),
   events: (days = 14) => get<EventsResponse>('/api/events', { days }),
 
-  trades: (q: { start?: string; end?: string; strategy?: string } = {}) => get<TradesResponse>('/api/trades', q),
+  trades: (q: { start?: string; end?: string; strategy?: string; mode?: string } = {}) => get<TradesResponse>('/api/trades', q),
   trade: (id: string) => get<TradeDetail>(`/api/trades/${encodeURIComponent(id)}`),
   addNote: (id: string, note: TradeNote) => post<OkResponse>(`/api/trades/${encodeURIComponent(id)}/notes`, note),
   exportUrl: (fmt: 'csv' | 'xlsx') => `/api/export${qs({ fmt })}`,
@@ -146,6 +178,24 @@ export const api = {
   agent: () => get<AgentResponse>('/api/agent'),
   setAgent: (enabled: boolean) => post<OkResponse>('/api/agent', { enabled }),
   agentAutoAll: () => post<OkResponse>('/api/agent/auto-all'),
+
+  // ---- auth (Iteration 3)
+  authStatus: () => get<AuthStatus>('/api/auth/status'),
+  authSetup: (req: AuthSetupRequest) => post<OkResponse>('/api/auth/setup', req),
+  authLogin: (req: AuthLoginRequest) => post<OkResponse>('/api/auth/login', req),
+  authLogout: () => post<OkResponse>('/api/auth/logout'),
+  changePassword: (req: ChangePasswordRequest) => post<OkResponse>('/api/auth/password', req),
+
+  // ---- free remote access (Iteration 3)
+  remote: () => get<RemoteStatus>('/api/remote'),
+  setRemote: (enabled: boolean) => post<Partial<RemoteStatus> & Partial<OkResponse>>('/api/remote', { enabled }),
+
+  // ---- manual execution on Angel One (Iteration 3)
+  ticket: (signalId: string) => get<TradeTicket>(`/api/signals/${encodeURIComponent(signalId)}/ticket`),
+  manualEntry: (signalId: string, req: ManualEntryRequest) =>
+    post<ManualEntryResponse>(`/api/signals/${encodeURIComponent(signalId)}/manual-entry`, req),
+  manualExit: (tradeId: string, exit_price: number) =>
+    post<OkResponse>(`/api/trades/${encodeURIComponent(tradeId)}/manual-exit`, { exit_price }),
 };
 
 export type Api = typeof api;

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import type { NewsSource, NotifySettings, RiskSettings, SettingsPatch } from '../api/types';
 import { ConnectWizard, SecretRow, useSaver } from '../components/ConnectWizard';
 import { DisclaimerText } from '../components/Disclaimer';
+import { RemoteAccessCard, SecurityCard } from '../components/Security';
 import { Banner, Card, Chip, ErrorBox, Loading, Modal, PageHeader, Segmented, TableWrap, Toggle } from '../components/ui';
 import { useApp } from '../lib/app-context';
 import { cls } from '../lib/format';
@@ -55,6 +56,7 @@ export default function Settings() {
   const [sources, setSources] = useState<NewsSource[] | null>(null);
   const [liveOpen, setLiveOpen] = useState(false);
   const [confirm, setConfirm] = useState('');
+  const [authKey, setAuthKey] = useState(0);
 
   useEffect(() => {
     if (!s.data) return;
@@ -83,6 +85,11 @@ export default function Settings() {
       <PageHeader title="Settings" />
       {s.error && <ErrorBox error={s.error} onRetry={s.reload} />}
       {!d && s.loading && <Loading />}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <RemoteAccessCard reloadKey={authKey} />
+        <SecurityCard setupCode={d?.setup_code} onChanged={() => setAuthKey((k) => k + 1)} />
+      </div>
 
       <ConnectWizard compact={status?.data_source === 'angel_one'} />
 

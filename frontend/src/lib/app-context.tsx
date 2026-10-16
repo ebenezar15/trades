@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { api } from '../api/client';
 import type { StatusResponse } from '../api/types';
 import { useWsMessages } from '../api/ws';
+import { alertKind, beep } from './sound';
 import { useApi } from './useApi';
 
 export interface Toast {
@@ -41,6 +42,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (m) => {
       if (m.type === 'alert') {
         const lvl = m.data.level;
+        const kind = alertKind(`${m.data.title ?? ''} ${m.data.message}`);
+        if (kind !== 'info') beep(kind);
+        else if (lvl === 'error' || lvl === 'critical') beep('stop');
+        if (kind === 'stop') {
+          toast(m.data.title ? `⛔ ${m.data.title}: ${m.data.message}` : `⛔ ${m.data.message}`, 'down');
+          return;
+        }
+        if (kind === 'target') {
+          toast(m.data.title ? `🎯 ${m.data.title}: ${m.data.message}` : `🎯 ${m.data.message}`, 'up');
+          return;
+        }
         toast(m.data.title ? `${m.data.title}: ${m.data.message}` : m.data.message, lvl === 'error' || lvl === 'critical' ? 'down' : lvl === 'warning' ? 'warn' : 'info');
       } else if (m.type === 'signal' && m.data.status !== 'blocked') {
         toast(`New signal: ${m.data.strategy_name} ${m.data.underlying} ${m.data.side}`, 'up');

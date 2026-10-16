@@ -77,4 +77,6 @@ const out = new URL('../public/icons/', import.meta.url);
 writeFileSync(new URL('icon-192.png', out), render(192, { rounded: true }));
 writeFileSync(new URL('icon-512.png', out), render(512, { rounded: true }));
 writeFileSync(new URL('icon-maskable-512.png', out), render(512, { rounded: false, inset: true }));
+// iOS home-screen icon: opaque, full-bleed square (iOS applies its own rounded mask)
+writeFileSync(new URL('apple-touch-icon.png', out), render(180, { rounded: false }));
 console.log('icons written');

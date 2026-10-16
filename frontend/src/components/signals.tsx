@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import type { SignalJSON } from '../api/types';
 import { useApp } from '../lib/app-context';
 import { cls, fmt, inr, prob, signedInr, timeIST, titleCase } from '../lib/format';
+import { TradeTicketButton } from './TradeTicket';
 import { Chip, StrategyBadge } from './ui';
 
 export function isPendingConfirm(s: SignalJSON): boolean {
@@ -234,7 +235,10 @@ export function SignalCard({ s, compact, onChanged }: { s: SignalJSON; compact?:
       </div>
       {s.status === 'blocked' && s.blocked_reason && <div className="mt-2 text-sm text-down">⛔ {s.blocked_reason}</div>}
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        {isPendingConfirm(s) ? <ConfirmButtons s={s} onDone={onChanged} /> : <span />}
+        <div className="flex flex-wrap items-center gap-2">
+          <TradeTicketButton s={s} onPlaced={onChanged} />
+          {isPendingConfirm(s) && <ConfirmButtons s={s} onDone={onChanged} />}
+        </div>
         <button className="btn btn-ghost text-accent" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
           {open ? 'Hide why ▴' : 'Why? ▾'}
         </button>

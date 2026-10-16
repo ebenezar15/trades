@@ -8,6 +8,7 @@ import { useApp } from '../lib/app-context';
 import { cls, timeIST } from '../lib/format';
 import { useTheme } from '../lib/theme';
 import { DisclaimerModal } from './Disclaimer';
+import { enableSound, useSound } from '../lib/sound';
 import { Icon } from './Icon';
 import { DataSourceBadge } from './ui';
 
@@ -29,6 +30,18 @@ export const NAV = [
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 const BOTTOM = ['/', '/signals', '/option-chain', '/trades'];
+/** extra bottom-nav items shown on wider portrait screens (iPad portrait) */
+const BOTTOM_MD = ['/agent', '/settings'];
+
+function HeaderSound() {
+  const { enabled, ready } = useSound();
+  if (ready || !enabled) return null;
+  return (
+    <button className="btn btn-ghost px-2 text-warn" onClick={enableSound} title="Enable sound alerts (iPad needs one tap)" aria-label="Enable sound alerts">
+      🔔<span className="hidden text-xs md:inline">Enable sound</span>
+    </button>
+  );
+}
 
 function Header() {
   const { status, statusError } = useApp();
@@ -40,7 +53,7 @@ function Header() {
   const dotTitle = backendDown ? `Backend unreachable: ${statusError}` : `Live feed: ${ws}`;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="flex h-12 items-center gap-2 px-3 sm:px-4">
+      <div className="px-safe flex h-12 items-center gap-2">
         <NavLink to="/" className="flex shrink-0 items-center gap-2 font-bold">
           <img src="/icons/icon.svg" alt="" className="h-7 w-7" />
           <span className="hidden sm:inline">IndexEdge</span>
@@ -79,6 +92,7 @@ function Header() {
             <span className={cls('h-2.5 w-2.5 rounded-full', dot)} />
             <span className="hidden sm:inline">{backendDown ? 'Offline' : ws === 'open' ? 'Live' : ws === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
           </span>
+          <HeaderSound />
           <button
             className="btn btn-ghost px-2"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -129,14 +143,14 @@ function Header() {
 
 function Sidebar() {
   return (
-    <nav className="sticky top-12 hidden h-[calc(100vh-3rem)] w-52 shrink-0 overflow-y-auto border-r border-line bg-panel/60 p-2 lg:block">
+    <nav className="sticky top-[calc(3rem+env(safe-area-inset-top))] hidden h-[calc(100vh-3rem-env(safe-area-inset-top))] w-52 shrink-0 overflow-y-auto overscroll-contain border-r border-line bg-panel/60 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] lg:block">
       {NAV.map((n) => (
         <NavLink
           key={n.to}
           to={n.to}
           end={n.to === '/'}
           className={({ isActive }) =>
-            cls('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition', isActive ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-fg')
+            cls('nav-link flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition', isActive ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-panel2 hover:text-fg')
           }
         >
           <Icon name={n.icon} className="h-4 w-4" />
@@ -150,20 +164,20 @@ function Sidebar() {
 function BottomNav() {
   const [more, setMore] = useState(false);
   const loc = useLocation();
-  const inMore = !BOTTOM.includes(loc.pathname);
+  const inMore = !BOTTOM.includes(loc.pathname) && !BOTTOM_MD.includes(loc.pathname);
   return (
     <>
       {more && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMore(false)}>
-          <div className="pb-safe absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-panel p-3 pb-20" onClick={(e) => e.stopPropagation()}>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-panel p-3 pb-[calc(5rem+env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
+            <div className="grid grid-cols-3 gap-2 md:grid-cols-5">
               {NAV.filter((n) => !BOTTOM.includes(n.to)).map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
                   onClick={() => setMore(false)}
                   className={({ isActive }) =>
-                    cls('flex flex-col items-center gap-1 rounded-xl border border-line p-2.5 text-center text-xs', isActive ? 'bg-accent/15 text-accent' : 'bg-panel2/60')
+                    cls('flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl border border-line p-2.5 text-center text-xs', isActive ? 'bg-accent/15 text-accent' : 'bg-panel2/60')
                   }
                 >
                   <Icon name={n.icon} />
@@ -174,22 +188,28 @@ function BottomNav() {
           </div>
         </div>
       )}
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-panel/95 backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5">
-          {NAV.filter((n) => BOTTOM.includes(n.to)).map((n) => (
+      <nav className="pb-safe px-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-panel/95 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-5 md:grid-cols-7">
+          {NAV.filter((n) => BOTTOM.includes(n.to) || BOTTOM_MD.includes(n.to)).map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.to === '/'}
               onClick={() => setMore(false)}
-              className={({ isActive }) => cls('flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium', isActive && !more ? 'text-accent' : 'text-muted')}
+              className={({ isActive }) =>
+                cls(
+                  'min-h-[52px] flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium md:text-xs',
+                  BOTTOM_MD.includes(n.to) ? 'hidden md:flex' : 'flex',
+                  isActive && !more ? 'text-accent' : 'text-muted',
+                )
+              }
             >
               <Icon name={n.icon} />
               {n.label.split(' ')[0]}
             </NavLink>
           ))}
           <button
-            className={cls('flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium', more || inMore ? 'text-accent' : 'text-muted')}
+            className={cls('flex min-h-[52px] flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium md:text-xs', more || inMore ? 'text-accent' : 'text-muted')}
             onClick={() => setMore((m) => !m)}
           >
             <Icon name="more" />
@@ -204,13 +224,13 @@ function BottomNav() {
 function Toasts() {
   const { toasts, dismiss } = useApp();
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-3 lg:bottom-4 lg:items-end">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-3 lg:bottom-[max(1rem,env(safe-area-inset-bottom))] lg:items-end">
       {toasts.map((t) => (
         <button
           key={t.id}
           onClick={() => dismiss(t.id)}
           className={cls(
-            'pointer-events-auto max-w-sm rounded-lg border px-3 py-2 text-left text-sm shadow-lg',
+            'pointer-events-auto min-h-[44px] max-w-md rounded-lg border px-3 py-2 text-left text-sm font-medium shadow-lg',
             t.tone === 'down' ? 'border-down/50 bg-panel text-down' : t.tone === 'up' ? 'border-up/50 bg-panel text-up' : t.tone === 'warn' ? 'border-warn/50 bg-panel text-warn' : 'border-line bg-panel',
           )}
         >
@@ -227,7 +247,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <Header />
       <div className="flex">
         <Sidebar />
-        <main className="min-w-0 flex-1 px-3 pb-24 pt-3 sm:px-4 lg:pb-8">{children}</main>
+        <main className="px-safe min-w-0 flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-3 lg:pb-[max(2rem,env(safe-area-inset-bottom))]">{children}</main>
       </div>
       <BottomNav />
       <Toasts />

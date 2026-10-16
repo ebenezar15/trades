@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, MOCK } from '../api/client';
 import type { TradeRow } from '../api/types';
 import { Card, Chip, Drawer, Empty, ErrorBox, Loading, PageHeader, Stat, TableWrap } from '../components/ui';
@@ -130,10 +131,23 @@ export default function Trades() {
   const [end, setEnd] = useState('');
   const [strategy, setStrategy] = useState('');
   const [status, setStatus] = useState('');
+  const [params, setParams] = useSearchParams();
+  const mode = params.get('mode') ?? '';
+  const setMode = (m: string) => {
+    const p = new URLSearchParams(params);
+    if (m) p.set('mode', m);
+    else p.delete('mode');
+    setParams(p, { replace: true });
+  };
   const [sel, setSel] = useState<string | null>(null);
-  const tr = useApi(() => api.trades({ start: start || undefined, end: end || undefined, strategy: strategy || undefined }), [start, end, strategy], 30000);
+  const tr = useApi(
+    () => api.trades({ start: start || undefined, end: end || undefined, strategy: strategy || undefined, mode: mode || undefined }),
+    [start, end, strategy, mode],
+    30000,
+  );
   const strategies = useApi(api.strategies);
-  const rows = useMemo(() => (tr.data?.trades ?? []).filter((t) => !status || t.status === status), [tr.data, status]);
+  // client-side mode filter too, in case the backend ignores ?mode=
+  const rows = useMemo(() => (tr.data?.trades ?? []).filter((t) => (!status || t.status === status) && (!mode || t.mode === mode)), [tr.data, status, mode]);
   const closed = rows.filter((t) => t.status === 'closed');
   const total = closed.reduce((a, t) => a + (t.pnl ?? 0), 0);
   const wins = closed.filter((t) => (t.pnl ?? 0) > 0).length;
@@ -154,7 +168,7 @@ export default function Trades() {
         }
       />
       <Card>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <label>
             <span className="label">From</span>
             <input type="date" className="input" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -176,6 +190,15 @@ export default function Trades() {
               <option value="">All</option>
               <option value="open">Open</option>
               <option value="closed">Closed</option>
+            </select>
+          </label>
+          <label>
+            <span className="label">Mode</span>
+            <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
+              <option value="">All</option>
+              <option value="manual">Manual (Angel One by hand)</option>
+              <option value="paper">Paper</option>
+              <option value="live">Live (auto)</option>
             </select>
           </label>
         </div>
@@ -209,7 +232,10 @@ export default function Trades() {
                 {rows.map((t) => (
                   <tr key={t.id} className="cursor-pointer hover:bg-panel2" onClick={() => setSel(t.id)}>
                     <td className="text-xs">{dateTimeIST(t.entry_ts)}</td>
-                    <td>{t.strategy_id}</td>
+                    <td>
+                      {t.strategy_id}
+                      {t.mode === 'manual' && <Chip tone="accent" className="ml-1">manual</Chip>}
+                    </td>
                     <td className="text-xs">
                       <span className={cls('mr-1 font-bold', t.side === 'BUY' ? 'text-up' : 'text-down')}>{t.side}</span>
                       {t.instrument_symbol}
@@ -219,7 +245,7 @@ export default function Trades() {
                     <td className="num">{t.status === 'open' ? <span className="text-accent">{fmt(t.ltp)}</span> : fmt(t.exit_price)}</td>
                     <td className={cls('num', pnlColor(t.r_multiple))}>{t.r_multiple != null ? fmt(t.r_multiple, 2) : '—'}</td>
                     <td className={cls('num font-semibold', pnlColor(t.pnl))}>{signedInr(t.pnl)}</td>
-                    <td>{t.status === 'open' ? <Chip tone="accent">open</Chip> : <Chip tone={(t.pnl ?? 0) > 0 ? 'up' : 'down'}>{t.outcome ?? 'closed'}</Chip>}</td>
+                    <td>{t.status === 'open' ? (t.alert ? <Chip tone={/stop/i.test(t.alert) ? 'down' : 'up'}>{/stop/i.test(t.alert) ? 'STOP HIT' : 'TARGET'}</Chip> : <Chip tone="accent">open</Chip>) : <Chip tone={(t.pnl ?? 0) > 0 ? 'up' : 'down'}>{t.outcome ?? 'closed'}</Chip>}</td>
                   </tr>
                 ))}
               </tbody>
