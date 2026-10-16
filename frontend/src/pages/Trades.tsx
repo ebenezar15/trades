@@ -196,7 +196,7 @@ export default function Trades() {
             <span className="label">Mode</span>
             <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="">All</option>
-              <option value="manual">Manual (Angel One by hand)</option>
+              <option value="manual">Manual (by hand)</option>
               <option value="paper">Paper</option>
               <option value="live">Live (auto)</option>
             </select>

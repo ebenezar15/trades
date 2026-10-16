@@ -115,3 +115,14 @@ def test_ticket_manual_entry_alert_and_exit(client):
     assert client.post(f"/api/trades/{tid}/manual-exit", json={"exit_price": t["stop_trigger"]}).json()["ok"]
     row = client.get(f"/api/trades/{tid}").json()
     assert row["status"] == "closed" and row["mode"] == "manual" and row["pnl"] < 0
+
+
+def test_pc_can_reset_forgotten_password_but_remote_cannot(client):
+    auth = client.app.state.auth
+    if not auth.password_set:
+        auth.set_password("me", "longpassword")
+    remote = _tunnel(client)
+    remote.post("/api/auth/login", json={"username": "me", "password": "longpassword"})
+    assert remote.post("/api/auth/password", json={"current": "wrong", "new": "newpassword1"}).status_code == 403
+    assert client.post("/api/auth/password", json={"new": "newpassword1"}).status_code == 200   # on the PC
+    assert auth.check_password("me", "newpassword1")

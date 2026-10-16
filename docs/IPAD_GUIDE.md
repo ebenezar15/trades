@@ -67,7 +67,7 @@ You can still use **Paper** mode and the **Agent** for simulated practice in par
 | iPad can't open the address at home | Same Wi-Fi? PC on and IndexEdge window open? Firewall rule added (re-run `install.bat`)? |
 | "Login required" loop | Make sure you use the latest address; the Cloudflare link changes when IndexEdge restarts |
 | "Too many attempts" | Wait 15 minutes; check the username (not case-sensitive) |
-| Forgot the password | On the PC delete `C:\IndexEdge\data\auth.json`, restart IndexEdge and create a new one |
+| Forgot the password | On the PC open **Settings → Security** and set a new one (no old password needed on the PC itself) |
 | Remote link says "Tunnel stopped" | PC internet down or a firewall blocks Cloudflare; it retries automatically |
 | Want a permanent link | Optional: create a free Cloudflare account and a "named tunnel" to `http://localhost:8000` (Cloudflare docs → Tunnels). Turn the built-in quick link off; IndexEdge's login still protects every request |
 | No sound on iPad | Tap **Enable sound alerts** again after the iPad was locked; keep the IndexEdge tab/app open |

@@ -649,6 +649,10 @@ def get_settings(request: Request):
     if is_local(request.client.host if request.client else None, request.headers):
         port = request.url.port or rt.settings.app.port
         data["phone_url"] = f"http://{lan_ip()}:{port}/?token={request.app.state.access_token}"
+        data["lan_url"] = f"http://{lan_ip()}:{port}"
+        auth = request.app.state.auth
+        if not auth.password_set:
+            data["setup_code"] = auth.setup_code          # only ever shown on the PC itself
     return jsonable(data)
 
 

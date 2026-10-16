@@ -104,7 +104,8 @@ def change_password(request: Request, body: dict = Body(...)):
     ip = client_ip(request)
     if auth.locked_out(ip):
         raise HTTPException(429, "Too many attempts — wait 15 minutes")
-    if not auth.check_password(auth.username or "", str(body.get("current") or "")):
+    # on the PC itself a forgotten password can be reset without the old one
+    if not _local(request) and not auth.check_password(auth.username or "", str(body.get("current") or "")):
         auth.record_fail(ip)
         raise HTTPException(403, "Current password is wrong")
     try:

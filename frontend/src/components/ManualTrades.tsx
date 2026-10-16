@@ -46,8 +46,8 @@ function Level({ label, value, tone, sub }: { label: string; value: string; tone
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</div>
-      <div className={cls('truncate font-mono text-base font-semibold', tone)}>{value}</div>
-      {sub && <div className="truncate font-mono text-[11px] text-muted">{sub}</div>}
+      <div className={cls('break-words font-mono text-base font-semibold', tone)}>{value}</div>
+      {sub && <div className="break-words font-mono text-[11px] text-muted">{sub}</div>}
     </div>
   );
 }
@@ -79,7 +79,7 @@ function ManualTradeCard({ t, onChanged }: { t: TradeRow; onChanged: () => void 
   return (
     <article
       className={cls(
-        'space-y-2 rounded-xl border bg-panel p-3',
+        'flex flex-col gap-2 rounded-xl border bg-panel p-3',
         t.alert ? (k === 'stop' ? 'border-down border-2' : k === 'target' ? 'border-up border-2' : 'border-warn') : 'border-line',
       )}
     >
@@ -112,7 +112,7 @@ function ManualTradeCard({ t, onChanged }: { t: TradeRow; onChanged: () => void 
         />
       </div>
       {exitOpen ? (
-        <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
+        <form onSubmit={submit} className="mt-auto flex flex-wrap items-end gap-2">
           <label className="min-w-0 flex-1">
             <span className="label">Exit price (your fill on Angel One)</span>
             <input className="input input-lg font-mono" inputMode="decimal" autoFocus value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Exit price" />
@@ -127,7 +127,7 @@ function ManualTradeCard({ t, onChanged }: { t: TradeRow; onChanged: () => void 
       ) : (
         <button
           type="button"
-          className={cls('btn h-11 w-full font-semibold', t.alert && 'btn-primary')}
+          className={cls('btn mt-auto h-11 w-full font-semibold', t.alert && 'btn-primary')}
           onClick={() => {
             setPrice(t.ltp != null ? t.ltp.toFixed(2) : '');
             setExitOpen(true);
@@ -141,7 +141,8 @@ function ManualTradeCard({ t, onChanged }: { t: TradeRow; onChanged: () => void 
 }
 
 export function ManualTradesPanel({ trades, onChanged }: { trades: TradeRow[]; onChanged: () => void }) {
-  const open = trades.filter(isManualOpen);
+  const rank = (t: TradeRow) => (t.alert ? (alertKind(t.alert) === 'stop' ? 0 : 1) : 2);
+  const open = trades.filter(isManualOpen).sort((a, b) => rank(a) - rank(b));
   const alerts = open.filter((t) => t.alert).length;
   const total = open.reduce((a, t) => a + (t.pnl ?? 0), 0);
   if (!open.length) return null;

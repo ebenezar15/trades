@@ -130,13 +130,15 @@ export function BiasMeter({ value, label = 'Macro bias' }: { value: number | nul
   );
 }
 
-export function Modal({ open, onClose, title, children, footer, wide, dismissable = true }: {
+export function Modal({ open, onClose, title, children, footer, wide, xl, dismissable = true }: {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** extra wide on large screens (iPad landscape / desktop) */
+  xl?: boolean;
   dismissable?: boolean;
 }) {
   useEffect(() => {
@@ -151,7 +153,7 @@ export function Modal({ open, onClose, title, children, footer, wide, dismissabl
       <div
         role="dialog"
         aria-modal="true"
-        className={cls('max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-line bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl', wide ? 'sm:max-w-3xl' : 'sm:max-w-md')}
+        className={cls('max-h-[92vh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-line bg-panel p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl', xl ? 'sm:max-w-3xl lg:max-w-5xl' : wide ? 'sm:max-w-3xl' : 'sm:max-w-md')}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-2">

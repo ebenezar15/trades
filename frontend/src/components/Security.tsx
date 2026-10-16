@@ -35,7 +35,7 @@ export function SecurityCard({ setupCode, onChanged }: { setupCode?: string | nu
   const [pw2, setPw2] = useState('');
   const [show, setShow] = useState(false);
   const setup = auth.needs_setup;
-  const valid = pw.length >= 8 && pw === pw2 && (setup ? !!username.trim() : !!cur);
+  const valid = pw.length >= 8 && pw === pw2 && (setup ? !!username.trim() : !!cur || auth.local);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!valid) return;
@@ -84,7 +84,7 @@ export function SecurityCard({ setupCode, onChanged }: { setupCode?: string | nu
               </label>
             ) : (
               <div className="sm:col-span-2">
-                <PwField label="Current password" value={cur} onChange={setCur} autoComplete="current-password" show={show} />
+                <PwField label={auth.local ? "Current password (not needed on this PC — use it to reset a forgotten one)" : "Current password"} value={cur} onChange={setCur} autoComplete="current-password" show={show} />
               </div>
             )}
             <PwField label="New password (8+ characters)" value={pw} onChange={setPw} autoComplete="new-password" show={show} />

@@ -124,7 +124,7 @@ function TicketBody({ t, onPlaced }: { t: TradeTicket; onPlaced: () => void }) {
   };
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Section title="1 · Entry order" tone={buy ? 'up' : 'down'} right={t.ltp != null && <span className="text-xs text-muted">LTP <b className="font-mono text-fg">{fmt(t.ltp)}</b></span>}>
           <Row n={1} label="Exchange" value={t.exchange} copy={t.exchange} />
           <Row n={2} label="Symbol" value={t.symbol} copy={t.symbol} big />
@@ -134,7 +134,7 @@ function TicketBody({ t, onPlaced }: { t: TradeTicket; onPlaced: () => void }) {
           <Row n={6} label="Quantity" value={t.quantity} copy={String(t.quantity)} sub={`${t.lots} lot${t.lots === 1 ? '' : 's'} × ${t.lot_size}`} />
           <Row n={7} label="Limit price" value={px(t.limit_price)} copy={px(t.limit_price)} tone="text-accent" />
         </Section>
-        <div className="space-y-3">
+        <div className="grid content-start gap-3 md:grid-cols-2 lg:grid-cols-1">
           <Section title="2 · Stop-loss (right after the fill)" tone="down">
             <Row label="Buy / Sell" value={exitSide} tone={buy ? 'text-down' : 'text-up'} sub={`Same symbol · ${t.product} · qty ${t.quantity}`} />
             <Row label="Order type" value="SL-L (stop-loss limit)" />
@@ -198,7 +198,7 @@ export function TicketModal({ signalId, onClose, onPlaced }: { signalId: string 
     <Modal
       open={!!signalId}
       onClose={onClose}
-      wide
+      xl
       title={
         t ? (
           <span>
