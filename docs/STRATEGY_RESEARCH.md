@@ -448,3 +448,137 @@ All times are IST. The signal runs on the index spot (or near-month futures wher
 - Risk per trade 0.5% of capital (configurable). Daily loss cap 1.5%. Maximum 4 trades per day across all strategies.
 - No new entries 15 min either side of scheduled macro events.
 - Every reported statistic includes: number of trades, win rate, average win / average loss, profit factor, expectancy in R and ₹ after costs, maximum drawdown, and the out-of-sample period. Results with fewer than **100 out-of-sample trades** are flagged "insufficient sample".
+
+---
+
+## Iteration 2 strategies
+
+Survey date: 16 October 2026. Same honesty rules as above: every win-rate figure quoted from a source is **claimed, unverified**. The sources are broker education portals, vendor scripts and community pages. None of them published an audited, out-of-sample, after-cost record for Nifty or Bank Nifty. The rule sets below are the **common core** across sources. IndexEdge defaults are listed separately, and every one of them is a parameter.
+
+General findings:
+- **Pullback trading** is the most-taught continuation idea in Indian retail education. The common recipe has three parts: a trend filter (EMAs or Supertrend), a "value zone" (EMA 20, a Fibonacci 38.2–61.8% retracement, VWAP or the Supertrend line) and a **trigger candle** (rejection, engulfing, or a close back in the trend direction). Sources: [Kotak Neo StockShaala: EMA pullback swing](https://www.kotakneo.com/stockshaala/swing-trading-strategies/ema-pullback-swing-strategy/), [Kotak Neo: EMA pullback scalping](https://www.kotakneo.com/stockshaala/scalping-trading-strategies/ema-pullback-scalping/), [OneTradeJournal: Pullback trading strategy in Indian markets](https://onetradejournal.com/strategies/pullback-trading-strategy).
+- Sources differ on EMA pairs: 9/20 for intraday scalping, 20/50 for swing trading. None gave a Nifty-specific backtest.
+- The common caveat is to stay out when the EMAs are flat or tangled, which describes range days.
+
+### 16. EMA pullback → `ema_pullback`
+- **Common rules:**
+   - Trend: EMA 20 above EMA 50, with price above EMA 200 or a rising ADX as the trend-health check.
+   - Pullback: price returns to the EMA 20 zone without breaking EMA 50.
+   - Entry: a rejection candle that closes back in the trend direction, often entered on a break of that candle's high.
+   - Stop: below the pullback swing low, not below the EMA.
+   - Exits: a partial at the prior swing or 1R, then trail the rest or exit at 2R.
+- **Sources:** [Kotak Neo swing](https://www.kotakneo.com/stockshaala/swing-trading-strategies/ema-pullback-swing-strategy/), [Kotak Neo scalping](https://www.kotakneo.com/stockshaala/scalping-trading-strategies/ema-pullback-scalping/) (micro-swing stop, volume pickup on the resumption candle), [NinjaTrader forum "pullback to 20 EMA"](https://forum.ninjatrader.com/forum/ninjatrader-8/strategy-development/1111258-pullback-to-20-ema-strategy).
+- **Claimed win rates:** none quoted with data.
+- **IndexEdge defaults:**
+   - Trend: EMA 21 > EMA 50, close > EMA 200 and ADX(14) ≥ 18. EMA 21 stands in for EMA 20.
+   - Touch: within the last 3 bars, price came within EMA 21 + 0.15×ATR without breaking EMA 50 − 0.25×ATR.
+   - Trigger: a bullish candle that closes above EMA 21, in the top 40% of its range.
+   - Stop: the pullback extreme − 0.1×ATR.
+   - Targets: 1R (partial, then breakeven) and 2R.
+   - Entries 09:45–14:45, maximum 2 per day.
+
+### 17. Fibonacci retracement pullback → `fib_pullback`
+- **Common rules:**
+   - Draw the retracement on a clear impulse leg (swing low to swing high).
+   - Wait for a 38.2–61.8% pullback, with 61.8% as the "golden" level.
+   - Enter on a candlestick confirmation at the level.
+   - Stop: below the swing, or below 78.6%.
+   - Target: the prior swing extreme, or the 1.272 / 1.618 extension.
+- **Sources:** [Upstox: Fibonacci intraday strategy](https://upstox.com/market-talk/intraday-3-mins-fibonacci-retracement-short-strategy/), [Jainam: Fibonacci retracement entry points](https://www.jainam.in/blog/blog-fibonacci-retracement-trading/) (Nifty example: 61.8% entry, stop below the swing low, 1.618 target), [Shriram Finance](https://www.shriramfinance.in/investments/fibonacci-retracement) (confirmations: candle pattern, RSI turn, volume), [Zerodha Varsity (Hindi) Fibonacci chapter](https://zerodha.com/varsity/chapter/%E0%A4%AB%E0%A4%BF%E0%A4%AC%E0%A5%8B%E0%A4%A8%E0%A4%BE%E0%A4%9A%E0%A5%80-%E0%A4%B0%E0%A5%80%E0%A4%9F%E0%A5%8D%E0%A4%B0%E0%A5%87%E0%A4%B8%E0%A4%AE%E0%A5%87%E0%A4%82%E0%A4%9F%E0%A5%8D%E0%A4%B8-fibonacc/), [StockSharp Fibonacci reversal](https://stocksharp.com/store/strategies.0076_fibonacci_retracement_reversal/) (5-minute bars, 20-bar swing lookback).
+- **Claimed win rates:** none quoted with data.
+- **Main hindsight risk:** the levels are drawn after the fact. IndexEdge therefore uses only swings **confirmed** 3 bars after the pivot.
+- **IndexEdge defaults:**
+   - Leg: today's last confirmed swing low → swing high, at least 1.5×ATR.
+   - Zone: the deepest retracement since the high must sit inside 38.2–61.8%. A break of 78.6% cancels the leg.
+   - Trigger: a reversal close above the prior bar's high.
+   - Stop: 78.6% − 0.1×ATR.
+   - Targets: the swing high and the 1.272 extension.
+   - One trade per leg, maximum 2 per day.
+
+### 18. Supertrend pullback → `supertrend_pullback`
+- **Common rules:**
+   - Supertrend(10, 3) is the standard NSE setting. It is used as a trend filter, not as a standalone entry.
+   - Confirm on the candle close, because 5-minute Bank Nifty wicks pierce the line.
+   - Buy dips toward the line while the trend holds, with a trigger candle.
+   - Stop: just beyond the line.
+- **Sources:** [OneTradeJournal: Supertrend on Bank Nifty and Nifty](https://onetradejournal.com/learn/how-to-use-supertrend-indicator), [Kotak Neo: Supertrend indicator](https://www.kotakneo.com/stockshaala/swing-trading-strategies/the-supertrend-indicator/), [MarketCalls: Supertrend intraday](https://www.marketcalls.in/amibroker/supertrend-intraday-trading-strategy-high-volatile-scrips.html) (the author warns Supertrend is a carry-forward tool that needs intraday exits, and recommends 2–3 years of backtest), [TradingQnA Supertrend thread](https://tradingqna.com/t/supertrend-strategy-creation/146250).
+- **Claimed win rates:** none with data.
+- **IndexEdge defaults:**
+   - Trend: ST direction held for at least 6 bars, and close on the trend side of EMA 50.
+   - Pullback: within the last 3 bars, price came within 0.6×ATR of the line.
+   - Resume: the candle closes beyond the previous close and at least 0.3×ATR clear of the line.
+   - Stop: line − 0.1×ATR.
+   - Targets: 1R and 2R.
+
+### 19. Breakout + retest (PDH/PDL, 15-minute opening range) → `breakout_retest`
+- **Common rules:**
+   - Mark the key levels: previous-day high/low, and the 09:15–09:30 opening range for Indian indices.
+   - Wait for the break, then **enter on the retest**, not on the first break.
+   - Confirm the hold with a rejection wick or a close back beyond the level.
+   - Stop: just beyond the retest structure.
+   - Target: the next intraday swing, or partials.
+   - Some versions treat the zone between the previous-day high and the premarket low as chop.
+- **Sources:** [TradeZella: Break & retest playbook](https://www.tradezella.com/playbooks/break-retest), [LuxAlgo: Previous Day High and Low Breakout](https://www.luxalgo.com/library/indicator/dn6ogsKO-previous-day-high-and-low-breakout-strategy/) (plain PDH/PDL break, no retest), [TradingView India Nifty scripts](https://cn.tradingview.com/scripts/nifty/page-2) (first-15-minute range combined with previous-day levels; backtest claims are claimed, unverified), [StockSharp "Breaks and Retests"](https://doc.stocksharp.com/en/api-examples/0563_Breaks_and_Retests).
+- **Claimed win rates:** none for Nifty.
+- **IndexEdge defaults:**
+   - Break: a close at least 0.1×ATR beyond the level, with the previous close on the other side.
+   - Retest: within 12 bars, price comes within 0.15×ATR of the level and closes back beyond it with a bullish (bearish) candle.
+   - Cancel the setup on a close more than 0.25×ATR back through the level.
+   - Stop: the level (or the retest extreme) − 0.25×ATR.
+   - Targets: 1R and 2R.
+   - One trade per level per day.
+   - Gap opens beyond the level have no break candle and are skipped.
+
+### 20. Bollinger Band mean reversion (range days) → `bollinger_reversion`
+- **Common rules:**
+   - Bands: BB(20, 2).
+   - Trade only in sideways or range conditions. Some versions use an ADX/DMI filter, for example |DI+ − DI−| < 20.
+   - Fade a close outside a band once price closes back inside. Some versions add an RSI extreme.
+   - Target: the middle band.
+   - Stop: beyond the extreme, or ATR-based.
+   - Use breakout logic on trend days and mean reversion on flat days.
+- **Sources:** [AlgoTest: 7 Bollinger Bands strategies for Indian traders](https://algotest.in/blog/bollinger-bands-strategies-for-indian-traders.md), [Sahi: Bollinger scalping, squeeze and mean reversion](https://www.sahi.com/blogs/bollinger-bands-scalping-squeeze-breakouts-and-mean-reversion-setups), [TradingView: BB mean reversion with RSI](https://www.tradingview.com/script/XRPeqEdA-Bollinger-Bands-Mean-Reversion-using-RSI-Krishna-Peri), [LuxAlgo: Sideways strategy DMI + BB](https://www.luxalgo.com/library/indicator/IMfJIbbG-sideways-strategy-dmi-bollinger-bands/), [Alice Blue](https://aliceblueonline.com/blog/how-to-use-bollinger-bands-for-stock-trading-in-india).
+- **Claimed win rates:** none for Nifty.
+- **IndexEdge defaults:**
+   - The IndexEdge regime must read `range` on the signal bar.
+   - Setup: a close outside the band within the last 3 bars, then a re-entry close inside with a candle in the trade direction.
+   - Stop: the extreme ± 0.1×ATR.
+   - Target: the middle band. Skip if it is less than 0.8R away.
+
+### 21. MACD + EMA 200 trend → `macd_trend`
+- **Common rules:**
+   - MACD(12, 26, 9) crosses its signal line on the side of the EMA 200: longs above it, shorts below.
+   - Classic variant: long crosses must occur below the zero line.
+   - Stop: the recent swing.
+   - Target: 1–2R.
+- **Sources:** [TradingView "Simple MACD strategy"](https://in.tradingview.com/script/yF94AKKh-Simple-MACD-strategy/), [Backtrex MACD + 200 EMA test](https://backtrex.com/en/backtests/macd-200-ema-usd-jpy).
+- **Claimed win rates:**
+   - TradingView script: ~62% with a 1:1 2%/2% target and stop, no sample size or market given. **Claimed, unverified.**
+   - Backtrex: a 10-year USD/JPY 4-hour test (not Nifty) reported a 32.7% win rate, profit factor 0.78 and −22.1% over 385 trades. **Claimed, unverified.** This counter-example shows the combo is not a reliable edge on its own.
+- **IndexEdge defaults:**
+   - Entry: a cross on this bar on the EMA 200 side, with the histogram expanding for 2 bars.
+   - Zero-line filter: optional, off by default.
+   - Stop: the 10-bar swing − 0.1×ATR. Skip if the stop is more than 3×ATR away.
+   - Target: 2R.
+
+### Considered, not added
+- **Heikin Ashi trend**: still deferred, for the reasons in §14 (synthetic prices).
+- **RSI-50 / Stochastic pullback**: popular, but largely the same as `ema_pullback` with a different oscillator trigger. It is better added later as an optional filter than as a separate ID.
+
+### Iteration 2 implementation notes
+- All six strategies share these settings:
+   - Entries no later than 14:45 (bar-close time). `time_exit` 15:15.
+   - `backtest_quality="full"`.
+   - Partial at 1R where specified: the simulator moves the stop to breakeven after T1.
+- **Synthetic sanity backtest.** The table below uses 250 synthetic NIFTY days, after costs, via `StrategyLab.backtest`. It checks the plumbing only and says nothing about real performance. The synthetic generator has no exploitable structure; for comparison, existing strategies such as `vwap_pullback` (−0.56R) and `ema_supertrend_adx` (−0.21R) are also negative on it.
+
+| ID | n | win % | expectancy (R) |
+|---|---|---|---|
+| `ema_pullback` | 301 | 23.3 | −0.53 |
+| `fib_pullback` | 260 | 22.7 | −0.36 |
+| `supertrend_pullback` | 253 | 29.2 | −0.37 |
+| `breakout_retest` | 245 | 19.2 | −0.81 |
+| `bollinger_reversion` | 246 | 41.1 | −0.70 |
+| `macd_trend` | 252 | 38.1 | −0.23 |
+
+Real evaluation requires Angel One / NSE history and walk-forward testing.

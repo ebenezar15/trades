@@ -558,7 +558,8 @@ class Runtime:
         await self.context.refresh()
         stale_synthetic = (self.report_meta.get("data_source") == "synthetic"
                            and self.market.data_source != "synthetic")
-        if not self.reports or stale_synthetic:
+        missing = [sid for sid in self.strategies if sid not in self.reports.get("NIFTY", {})]
+        if not self.reports or stale_synthetic or missing:
             await self.refresh_reports()
         if self.trades.open_trades or not self.market.demo:
             await self.reconcile()

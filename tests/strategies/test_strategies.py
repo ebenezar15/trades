@@ -101,8 +101,9 @@ def test_latest_returns_signal_on_last_bar(feat250):
     ("squeeze_breakout", "09:45", "14:45"), ("rsi_divergence", "09:45", "14:30"), ("gap_fill", "09:30", "11:00"),
     ("inside_bar_breakout", "09:45", "14:00"), ("straddle_920", "09:20", "09:20"),
     ("expiry_straddle", "10:00", "10:00"),
-    ("ema_pullback", "09:45", "14:45"), ("fib_pullback", "09:45", "14:45"), ("supertrend_pullback", "09:45", "14:45"),
-    ("breakout_retest", "09:35", "14:45"), ("bollinger_reversion", "09:45", "14:45"), ("macd_trend", "09:45", "14:45"),
+    ("ema_pullback", "09:45", "14:45"), ("fib_pullback", "09:45", "14:45"),
+    ("supertrend_pullback", "09:45", "14:45"), ("breakout_retest", "09:35", "14:45"),
+    ("bollinger_reversion", "09:45", "14:45"), ("macd_trend", "09:45", "14:45"),
 ])
 def test_entry_windows_use_bar_close(sid, start, end, feat250):
     sigs = get_strategy(sid).scan(feat250, "NIFTY")
