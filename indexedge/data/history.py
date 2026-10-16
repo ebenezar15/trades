@@ -75,7 +75,8 @@ class HistoryService:
         key = underlying.upper().replace(" ", "")
         if key not in DEFAULT_INDEX_TOKENS:
             raise KeyError(f"unknown underlying {underlying!r}")
-        return Instrument(DEFAULT_INDEX_TOKENS[key], key, key, "NSE", InstrumentKind.INDEX)
+        return Instrument(DEFAULT_INDEX_TOKENS[key], key, key, "BSE" if key == "SENSEX" else "NSE",
+                          InstrumentKind.INDEX)
 
     async def fetch(self, inst: Instrument, tf: str, start: datetime, end: datetime) -> pd.DataFrame:
         """Download candles for ``inst`` in chunks; failed chunks are logged and skipped."""

@@ -14,6 +14,7 @@ from typing import Any
 from indexedge.core import bus as topics
 from indexedge.core.clock import IST, parse_hhmm
 from indexedge.core.types import InstrumentKind, Signal
+from indexedge.core.underlyings import fo_exchange
 from indexedge.journal.models import TradeRecord
 
 log = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class ManualDesk:
             ctx = r.get("context") or {}
             self.open[r["id"]] = {"row": r, "index_levels": ctx.get("index_levels") or {},
                                   "signal_side": ctx.get("signal_side", r.get("side")),
-                                  "token": ctx.get("token"), "exchange": ctx.get("exchange", "NFO"),
+                                  "token": ctx.get("token"), "exchange": ctx.get("exchange") or fo_exchange(r.get("underlying") or ""),
                                   "alerted": set(ctx.get("alerted", [])), "ltp": None, "alert": None}
 
     # ------------------------------------------------------------------ prices

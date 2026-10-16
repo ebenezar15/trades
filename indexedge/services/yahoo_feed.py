@@ -1,4 +1,4 @@
-"""Real Nifty / Bank Nifty prices without a broker, from Yahoo Finance (may be delayed ~1–2 minutes).
+"""Real Nifty / Bank Nifty / Sensex prices without a broker, from Yahoo Finance (may be delayed ~1–2 minutes).
 
 Used when Angel One is not connected. History: 5-minute candles for the last ~60 days. Live: every
 ``poll_s`` seconds the day's 1-minute candles are downloaded and re-aggregated into 5-minute bars, so the
@@ -19,7 +19,7 @@ from indexedge.data.store import empty_candles, resample
 
 log = logging.getLogger(__name__)
 
-TICKERS = {"NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK", "INDIAVIX": "^INDIAVIX"}
+TICKERS = {"NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN", "INDIAVIX": "^INDIAVIX"}
 Downloader = Callable[[str, str, str], pd.DataFrame]
 BarHandler = Callable[[str, pd.Series], Awaitable[None]]
 QuoteHandler = Callable[[str, float, datetime], Awaitable[None]]
@@ -61,7 +61,7 @@ class YahooFeed:
         """One poll: publish newly closed 5-minute bars and the latest price. Returns bars published."""
         now = self.clock.now()
         published = 0
-        for u in ("NIFTY", "BANKNIFTY", "INDIAVIX"):
+        for u in TICKERS:
             one = await asyncio.to_thread(self.download, TICKERS[u], "1m", "1d")
             one = session_only(one)
             one = one[one.index.date == now.date()] if not one.empty else one

@@ -21,6 +21,7 @@ from indexedge.backtest.metrics import compute_metrics, monte_carlo
 from indexedge.backtest.report import report_card
 from indexedge.backtest.walkforward import walk_forward
 from indexedge.config.settings import Settings, load_settings
+from indexedge.core.underlyings import UNDERLYINGS
 from indexedge.data.synthetic import SPECS, generate_intraday
 from indexedge.features.engine import build_features
 from indexedge.strategies.registry import STRATEGY_IDS, get_strategy
@@ -113,7 +114,7 @@ class StrategyLab:
             self._cache[key] = (build_features(raw), source)
         return self._cache[key]
 
-    def candles(self, days: int = 250, underlyings: tuple[str, ...] = ("NIFTY", "BANKNIFTY")) -> dict[str, pd.DataFrame]:
+    def candles(self, days: int = 250, underlyings: tuple[str, ...] = UNDERLYINGS) -> dict[str, pd.DataFrame]:
         """Raw 5-minute candles per underlying (same source selection as the backtests)."""
         return {u: self.features(u, days)[0][["open", "high", "low", "close", "volume"]] for u in underlyings}
 

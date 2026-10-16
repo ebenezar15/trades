@@ -3,13 +3,14 @@ import { api } from '../api/client';
 import { useWsMessages } from '../api/ws';
 import { SignalCard, isPendingConfirm } from '../components/signals';
 import { Empty, ErrorBox, Loading, PageHeader, Segmented } from '../components/ui';
+import { UNDERLYING_OPTIONS } from '../lib/underlyings';
 import { useApi } from '../lib/useApi';
 
 type Filter = 'all' | 'pending' | 'active' | 'blocked' | 'taken' | 'skipped' | 'expired';
 
 export default function Signals() {
   const [filter, setFilter] = useState<Filter>('all');
-  const [u, setU] = useState<'ALL' | 'NIFTY' | 'BANKNIFTY'>('ALL');
+  const [u, setU] = useState<string>('ALL');
   const sig = useApi(() => api.signals(undefined, 200), [], 10000);
   useWsMessages(() => void sig.reload(), ['signal']);
 
@@ -33,8 +34,7 @@ export default function Signals() {
             onChange={setU}
             options={[
               { value: 'ALL', label: 'All' },
-              { value: 'NIFTY', label: 'NIFTY' },
-              { value: 'BANKNIFTY', label: 'BANKNIFTY' },
+              ...UNDERLYING_OPTIONS,
             ]}
           />
         }

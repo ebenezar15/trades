@@ -2,7 +2,7 @@
 // Source of truth: docs/superpowers/plans/2026-10-16-indexedge.md — "REST / WebSocket API contract".
 // Fields marked "(ext)" are optional extras the UI uses if present; the UI degrades gracefully without them.
 
-export type Underlying = 'NIFTY' | 'BANKNIFTY' | string;
+export type Underlying = 'NIFTY' | 'BANKNIFTY' | 'SENSEX' | string;
 export type TradingMode = 'paper' | 'live';
 export type ExecutionMode = 'signal_only' | 'confirm' | 'auto';
 export type Regime = 'trend_up' | 'trend_down' | 'range' | 'high_vol' | 'unknown';
@@ -714,7 +714,7 @@ export interface TradeTicket {
   signal_id: string;
   strategy_name: string;
   underlying: Underlying;
-  exchange: 'NFO' | string;
+  exchange: 'NFO' | 'BFO' | string;
   symbol: string;
   side: Side;
   lots: number;

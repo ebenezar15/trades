@@ -4,6 +4,7 @@ import type { OptionLeg } from '../api/types';
 import { Card, Chip, ErrorBox, Loading, PageHeader, Segmented, Stat, Toggle } from '../components/ui';
 import { cls, compact, fmt, titleCase } from '../lib/format';
 import { useApi } from '../lib/useApi';
+import { UNDERLYING_OPTIONS } from '../lib/underlyings';
 
 const BUILDUP_BG: Record<string, string> = {
   long_buildup: 'bg-up/25',
@@ -86,7 +87,7 @@ export default function OptionChain() {
         title="Option Chain"
         right={
           <>
-            <Segmented value={u} onChange={(v) => { setU(v); setExpiry(undefined); }} options={[{ value: 'NIFTY', label: 'NIFTY' }, { value: 'BANKNIFTY', label: 'BANKNIFTY' }]} />
+            <Segmented value={u} onChange={(v) => { setU(v); setExpiry(undefined); }} options={UNDERLYING_OPTIONS} />
             {d && (
               <select className="input w-auto" value={d.expiry} onChange={(e) => setExpiry(e.target.value)} aria-label="Expiry">
                 {d.expiries.map((x) => (

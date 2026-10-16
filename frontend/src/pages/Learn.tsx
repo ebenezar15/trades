@@ -5,6 +5,7 @@ import { Markdown } from '../components/Markdown';
 import { Card, Chip, ErrorBox, Loading, PageHeader, Segmented, StrategyBadge } from '../components/ui';
 import { cls } from '../lib/format';
 import { useApi } from '../lib/useApi';
+import { UNDERLYING_OPTIONS } from '../lib/underlyings';
 
 function readScore(): { right: number; total: number } {
   try {
@@ -46,7 +47,7 @@ function Quiz() {
           <span className="text-xs text-muted">
             Score {score.right}/{score.total}
           </span>
-          <Segmented value={u} onChange={(v) => { setU(v); setPicked(null); }} options={[{ value: 'NIFTY', label: 'NIFTY' }, { value: 'BANKNIFTY', label: 'BANKNIFTY' }]} />
+          <Segmented value={u} onChange={(v) => { setU(v); setPicked(null); }} options={UNDERLYING_OPTIONS} />
         </>
       }
     >

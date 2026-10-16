@@ -46,7 +46,7 @@ class ORB15(Strategy):
         "vol_mult": 1.5,
         "vol_avg_bars": 20,
         "atr_stop_cap": 3.0,
-        "max_range_pct": {"NIFTY": 0.8, "BANKNIFTY": 1.0},
+        "max_range_pct": {"NIFTY": 0.8, "BANKNIFTY": 1.0, "SENSEX": 0.8},
         "entry_end": "11:30",
         "targets_r": [1.0, 2.0],
     }

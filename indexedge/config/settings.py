@@ -34,13 +34,14 @@ class BrokerSettings(BaseModel):
     ip_check_url: str = "https://api.ipify.org"
     login_time: str = "08:30"
     intraday_cutoff: str = "15:20"    # Angel One F&O intraday auto square-off (from 2026-08-03)
-    exchange_index: str = "NSE"
+    exchange_index: str = "NSE"       # legacy; per-index exchanges live in indexedge.core.underlyings
     exchange_fo: str = "NFO"
     instrument_master_url: str = (
         "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
     )
     index_tokens: dict[str, str] = Field(
-        default_factory=lambda: {"NIFTY": "99926000", "BANKNIFTY": "99926009", "INDIAVIX": "99926017"}
+        default_factory=lambda: {"NIFTY": "99926000", "BANKNIFTY": "99926009", "SENSEX": "99919000",
+                                 "INDIAVIX": "99926017"}
     )
 
 
@@ -51,7 +52,7 @@ class RiskSettings(BaseModel):
     max_trades_per_day: int = 5
     max_consecutive_losses: int = 3
     max_open_positions: int = 2
-    max_lots_per_index: dict[str, int] = Field(default_factory=lambda: {"NIFTY": 4, "BANKNIFTY": 4})
+    max_lots_per_index: dict[str, int] = Field(default_factory=lambda: {"NIFTY": 4, "BANKNIFTY": 4, "SENSEX": 4})
     no_trade_first_min: int = 5
     no_trade_last_min: int = 20
     cooldown_after_loss_min: int = 10

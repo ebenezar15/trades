@@ -108,7 +108,8 @@ def test_option_chain_smile_parity_and_oi():
 def test_master_rows_format():
     rows = synthetic_master_rows(date(2026, 10, 16))
     idx = {r["token"]: r for r in rows if r["instrumenttype"] == "AMXIDX"}
-    assert set(idx) == {"99926000", "99926009", "99926017"}
+    assert set(idx) == {"99926000", "99926009", "99919000", "99926017"}
+    assert idx["99919000"]["name"] == "SENSEX" and idx["99919000"]["exch_seg"] == "BSE"
     assert idx["99926000"]["name"] == "NIFTY" and idx["99926000"]["symbol"] == "Nifty 50"
     opt = next(r for r in rows if r["instrumenttype"] == "OPTIDX" and r["name"] == "NIFTY")
     assert opt["strike"].endswith(".000000") and float(opt["strike"]) > 1_000_000  # x100
@@ -122,6 +123,10 @@ def test_master_rows_format():
           if r["name"] == "BANKNIFTY" and r["instrumenttype"] == "OPTIDX"}
     assert date(2026, 10, 27) in bn and len(bn) == 3  # monthly, last Tuesday
     assert all(r["lotsize"] == "30" for r in rows if r["name"] == "BANKNIFTY" and r["instrumenttype"] != "AMXIDX")
+    sx = [r for r in rows if r["name"] == "SENSEX" and r["instrumenttype"] != "AMXIDX"]
+    assert sx and all(r["exch_seg"] == "BFO" and r["lotsize"] == "20" for r in sx)
+    sx_exps = {datetime.strptime(r["expiry"], "%d%b%Y").date() for r in sx if r["instrumenttype"] == "OPTIDX"}
+    assert all(e.weekday() == 3 for e in sx_exps) and date(2026, 10, 22) in sx_exps   # weekly Thursdays
 
 
 def test_master_expiry_holiday_shift():

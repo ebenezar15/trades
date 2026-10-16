@@ -24,10 +24,12 @@ from indexedge.core.types import Instrument, InstrumentKind, OptionType
 log = logging.getLogger(__name__)
 
 DEFAULT_URL = "https://margincalculator.angelone.in/OpenAPI_File/files/OpenAPIScripMaster.json"
-DEFAULT_INDEX_TOKENS = {"NIFTY": "99926000", "BANKNIFTY": "99926009", "INDIAVIX": "99926017"}
+DEFAULT_INDEX_TOKENS = {"NIFTY": "99926000", "BANKNIFTY": "99926009", "SENSEX": "99919000", "INDIAVIX": "99926017"}
+_INDEX_EXCHANGE = {"SENSEX": "BSE"}
 _INDEX_ALIASES = {
     "NIFTY": {"NIFTY", "NIFTY50"},
     "BANKNIFTY": {"BANKNIFTY", "NIFTYBANK"},
+    "SENSEX": {"SENSEX", "BSESENSEX"},
     "INDIAVIX": {"INDIAVIX", "VIX"},
 }
 _KINDS = {"AMXIDX": InstrumentKind.INDEX, "FUTIDX": InstrumentKind.FUTURE, "OPTIDX": InstrumentKind.OPTION}
@@ -145,13 +147,15 @@ class InstrumentMaster:
         aliases = next((a for a in _INDEX_ALIASES.values() if key in a), {key})
         matches = [i for i in self._indices if _norm(i.name) in aliases or _norm(i.symbol) in aliases]
         if matches:
-            matches.sort(key=lambda i: i.exchange != "NSE")
+            home = _INDEX_EXCHANGE.get(next((k for k, a in _INDEX_ALIASES.items() if key in a), key), "NSE")
+            matches.sort(key=lambda i: i.exchange != home)
             return matches[0]
         canonical = next((k for k, a in _INDEX_ALIASES.items() if key in a), key)
         token = DEFAULT_INDEX_TOKENS.get(canonical)
         if token is None:
             raise KeyError(f"index {name!r} not in instrument master")
-        return self._by_token.get(token) or Instrument(token, canonical, canonical, "NSE", InstrumentKind.INDEX)
+        return self._by_token.get(token) or Instrument(token, canonical, canonical,
+                                                       _INDEX_EXCHANGE.get(canonical, "NSE"), InstrumentKind.INDEX)
 
     def futures(self, name: str) -> list[Instrument]:
         return list(self._futures.get(name.upper(), []))

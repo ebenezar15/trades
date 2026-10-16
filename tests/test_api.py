@@ -31,7 +31,7 @@ def test_status_and_overview(client):
     st = client.get("/api/status").json()
     assert st["mode"] == "paper" and st["demo_mode"] is True and st["data_source"] == "synthetic"
     ov = client.get("/api/overview").json()["indices"]
-    assert {i["underlying"] for i in ov} == {"NIFTY", "BANKNIFTY"}
+    assert {i["underlying"] for i in ov} == {"NIFTY", "BANKNIFTY", "SENSEX"}
     assert all(i["regime"] != "unknown" for i in ov)
 
 

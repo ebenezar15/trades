@@ -31,9 +31,13 @@ async def broker_dry_run() -> str:
     try:
         await broker.connect()
         lines.append("Login: OK")
-        tok = s.broker.index_tokens["NIFTY"]
-        ltp = await broker.get_ltp("NSE", tok, "Nifty 50")
-        lines.append(f"NIFTY LTP: {ltp:,.2f}")
+        from indexedge.core.underlyings import INFO, UNDERLYINGS, index_tokens
+
+        toks = index_tokens(s.broker.index_tokens)
+        for u in UNDERLYINGS:
+            ltp = await broker.get_ltp(INFO[u].index_exchange, toks[u], INFO[u].index_symbol)
+            lines.append(f"{u} LTP: {ltp:,.2f}")
+        tok = toks["NIFTY"]
         end = clock.now()
         df = await broker.get_candles("NSE", tok, "5m", end - timedelta(days=5), end)
         lines.append(f"Historical 5m candles (5 days): {len(df)} rows")

@@ -6,6 +6,7 @@ import { Card, Chip, Empty, ErrorBox, Loading, Modal, PageHeader, Segmented, Sta
 import { useApp } from '../lib/app-context';
 import { cls, fmt, pnlColor, prob, signedInr, titleCase } from '../lib/format';
 import { useApi } from '../lib/useApi';
+import { UNDERLYING_OPTIONS } from '../lib/underlyings';
 
 function MetricsGrid({ m }: { m: StrategyMetrics }) {
   return (
@@ -86,7 +87,7 @@ function BacktestModal({ s, onClose }: { s: StrategyInfo; onClose: () => void })
   return (
     <Modal open onClose={onClose} title={`Backtest · ${s.name}`} wide>
       <div className="flex flex-wrap items-end gap-2">
-        <Segmented value={u} onChange={setU} options={[{ value: 'NIFTY', label: 'NIFTY' }, { value: 'BANKNIFTY', label: 'BANKNIFTY' }]} />
+        <Segmented value={u} onChange={setU} options={UNDERLYING_OPTIONS} />
         <label className="w-28">
           <span className="label">Days</span>
           <input type="number" min={20} max={2000} className="input" value={days} onChange={(e) => setDays(Number(e.target.value))} />

@@ -8,6 +8,9 @@ which raised STT on F&O **with effect from 2026-04-01**:
   2026-27: STT update", Outlook Money (Feb 2026).
 * NSE transaction charges: futures 0.00173%, options 0.03503% of (premium) turnover, both sides
   (NSE circular effective 2024-10-01; unchanged as far as verified).
+* SENSEX (BSE/BFO) is costed with the same NSE rates. BSE's own rates are slightly lower (Sensex options
+  ₹3,250 per crore of premium = 0.0325%, index futures nil; BSE revision effective 2024-10-01), so SENSEX costs
+  are marginally overstated — the conservative direction.
 * SEBI turnover fee: ₹10 per crore (0.000001 × turnover), both sides.
 * GST: 18% on (brokerage + exchange transaction charges + SEBI fee).
 * Stamp duty (buy side only): futures 0.002%, options 0.003%.

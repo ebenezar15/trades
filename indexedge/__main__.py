@@ -4,7 +4,7 @@ Commands
   run        start the server (default) and open the browser
   setup      interactive first-time setup (secrets -> OS keyring, static IP, capital, Telegram)
   migrate    create/upgrade the local database
-  backtest   run a backtest from the terminal: backtest <strategy_id> [NIFTY|BANKNIFTY] [days]
+  backtest   run a backtest from the terminal: backtest <strategy_id> [NIFTY|BANKNIFTY|SENSEX] [days]
   check      dry-run broker login + data fetch (never places orders)
 """
 from __future__ import annotations

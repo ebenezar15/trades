@@ -22,7 +22,7 @@ news:
     - {name: "Reuters Business (Google News)", url: "https://news.google.com/rss/search?q=reuters+markets+when:1d&hl=en-IN&gl=IN&ceid=IN:en"}
 
 # Approximate index weights (%) of heavyweights used for breadth / driver attribution.
-# Refresh periodically from NSE index factsheets.
+# Refresh periodically from NSE / BSE index factsheets.
 heavyweights:
   NIFTY:
     HDFCBANK: 13.0
@@ -48,6 +48,19 @@ heavyweights:
     BANKBARODA: 2.5
     AUBANK: 2.0
     PNB: 2.0
+  SENSEX:
+    HDFCBANK: 15.0
+    ICICIBANK: 10.0
+    RELIANCE: 10.0
+    INFY: 6.0
+    BHARTIARTL: 5.5
+    LT: 4.5
+    ITC: 4.0
+    TCS: 3.8
+    AXISBANK: 3.5
+    SBIN: 3.5
+    KOTAKBANK: 3.4
+    M&M: 3.0
 
 # NSE trading holidays (YYYY-MM-DD). The app also tries to download the official list daily.
 holidays: []

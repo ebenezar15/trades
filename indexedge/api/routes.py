@@ -17,11 +17,10 @@ from indexedge.api.serialize import candles_json, jsonable, line_json
 from indexedge.config.secrets import SECRET_NAMES, secrets_status, set_secret
 from indexedge.core.clock import IST
 from indexedge.core.types import ExecutionMode
+from indexedge.core.underlyings import UNDERLYINGS
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
-
-UNDERLYINGS = ("NIFTY", "BANKNIFTY")
 
 
 def rt_of(request: Request):

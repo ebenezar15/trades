@@ -87,7 +87,7 @@ function weekdays(n: number): number[] {
 }
 
 // ---------------------------------------------------------------- candles
-const BASE: Record<string, number> = { NIFTY: 25180, BANKNIFTY: 56420 };
+const BASE: Record<string, number> = { NIFTY: 25180, BANKNIFTY: 56420, SENSEX: 82350 };
 const BARS_PER_DAY = 75; // 09:15..15:30 at 5m
 
 function genDay(underlying: string, start: number, open: number, seed: number, bars = BARS_PER_DAY): Candle[] {
@@ -748,7 +748,7 @@ function normCdf(x: number) {
 }
 function optionChain(underlying: string, expiry?: string): OptionChainResponse {
   const spot = ltp(underlying);
-  const step = underlying === 'BANKNIFTY' ? 100 : 50;
+  const step = underlying === 'NIFTY' ? 50 : 100;
   const atm = Math.round(spot / step) * step;
   const expiries = ['2026-10-20', '2026-10-27', '2026-11-03', '2026-11-24'];
   const exp = expiry && expiries.includes(expiry) ? expiry : expiries[0];
@@ -963,7 +963,7 @@ function status(): StatusResponse {
     disclaimer_accepted: state.disclaimer,
     server_time: isoIST(Math.floor(now() / 1000)),
     data_source: dataSource(),
-    data_sources: { NIFTY: dataSource(), BANKNIFTY: dataSource() },
+    data_sources: { NIFTY: dataSource(), BANKNIFTY: dataSource(), SENSEX: dataSource() },
   };
 }
 function settings(): SettingsResponse {
@@ -972,7 +972,7 @@ function settings(): SettingsResponse {
     broker: { static_ip: '203.0.113.24', login_time: '08:30', intraday_cutoff: '15:20', ip_check_url: 'https://api.ipify.org' },
     risk: {
       capital: 200000, risk_per_trade_pct: 1, max_daily_loss_pct: 3, max_trades_per_day: 5, max_consecutive_losses: 3,
-      max_open_positions: 2, max_lots_per_index: { NIFTY: 4, BANKNIFTY: 4 }, no_trade_first_min: 5, no_trade_last_min: 20,
+      max_open_positions: 2, max_lots_per_index: { NIFTY: 4, BANKNIFTY: 4, SENSEX: 4 }, no_trade_first_min: 5, no_trade_last_min: 20,
       cooldown_after_loss_min: 10, revenge_size_multiplier: 1, stale_feed_seconds: 10, lock_edits_during_market: true,
     },
     execution: { mode: state.mode, default_execution_mode: 'signal_only', limit_buffer_ticks: 4, preferred_instrument: 'option', option_moneyness: 'ATM' },
@@ -1016,10 +1016,10 @@ function premarket(): PremarketResponse {
     date: dayStr(Math.floor(now() / 1000)),
     context: context(),
     gap_expectation: { underlying: 'NIFTY', points: 48, pct: 0.19, text: 'Mild gap-up of ~48 pts expected (GIFT Nifty +0.31%)' },
-    key_levels: { NIFTY: levels(seriesFor('NIFTY')), BANKNIFTY: levels(seriesFor('BANKNIFTY')) },
+    key_levels: { NIFTY: levels(seriesFor('NIFTY')), BANKNIFTY: levels(seriesFor('BANKNIFTY')), SENSEX: levels(seriesFor('SENSEX')) },
     events_today: events().events.slice(0, 1),
     enabled_strategies: strategies().filter((s) => s.enabled).map((s) => ({ id: s.id, name: s.name, suits_regime: !s.regimes || s.regimes.includes('trend_up') })),
-    regime: { NIFTY: 'trend_up', BANKNIFTY: 'range' },
+    regime: { NIFTY: 'trend_up', BANKNIFTY: 'range', SENSEX: 'trend_up' },
   };
 }
 function eod(day?: string): EodReport {
@@ -1101,7 +1101,7 @@ function agent(): AgentResponse {
   const strats = strategies();
   const lastBar = Math.floor(t / 300) * 300;
   const watching = strats.flatMap((s, i) =>
-    ['NIFTY', 'BANKNIFTY'].map((u, j) => {
+    ['NIFTY', 'BANKNIFTY', 'SENSEX'].map((u, j) => {
       const k = (i * 2 + j) % 7;
       const st = !s.enabled ? 'disabled' : k === 0 ? 'signal' : k === 3 ? 'blocked' : 'no_setup';
       const detail =
@@ -1193,7 +1193,7 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
       case '/api/candles': return candlesResp(q('underlying') ?? 'NIFTY', Number(q('limit') ?? 500));
       case '/api/overview':
         return {
-          indices: ['NIFTY', 'BANKNIFTY'].map((u) => ({
+          indices: ['NIFTY', 'BANKNIFTY', 'SENSEX'].map((u) => ({
             underlying: u, ltp: ltp(u), change_pct: round(((ltp(u) - prevClose(u)) / prevClose(u)) * 100), regime: u === 'NIFTY' ? 'trend_up' : 'range',
             vix: 13.2, pcr: optionChain(u).pcr, max_pain: optionChain(u).max_pain,
           })),
@@ -1350,7 +1350,7 @@ let tickN = 0;
 export function mockTick(): WsMessage[] {
   tickN++;
   const out: WsMessage[] = [];
-  for (const u of ['NIFTY', 'BANKNIFTY']) {
+  for (const u of ['NIFTY', 'BANKNIFTY', 'SENSEX']) {
     const s = seriesFor(u);
     const last = s[s.length - 1];
     const r = rng(tickN * 13 + u.length);

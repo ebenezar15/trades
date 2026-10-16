@@ -27,6 +27,8 @@ import pandas as pd
 from scipy.special import ndtr
 
 from indexedge.core.clock import IST
+from indexedge.core.underlyings import INFO as UINFO
+from indexedge.core.underlyings import UNDERLYINGS
 
 SESSION_MINUTES = 375  # 09:15 -> 15:30
 SESSION_START = time(9, 15)
@@ -49,7 +51,9 @@ class UnderlyingSpec:
 SPECS: dict[str, UnderlyingSpec] = {
     "NIFTY": UnderlyingSpec("NIFTY", 25000.0, 0.009, 50.0, 65, 7.5e6, 0.12, "99926000", "Nifty 50"),
     "BANKNIFTY": UnderlyingSpec("BANKNIFTY", 56000.0, 0.011, 100.0, 30, 2.4e6, 0.14, "99926009", "Nifty Bank"),
+    "SENSEX": UnderlyingSpec("SENSEX", 82000.0, 0.009, 100.0, 20, 1.2e6, 0.12, "99919000", "SENSEX"),
 }
+_SEED_OFFSET = {"NIFTY": 0, "BANKNIFTY": 7919, "SENSEX": 15881}
 
 REGIMES = ("trend_up", "trend_down", "range", "high_vol")
 # Row = today's regime, column = tomorrow's. Persistent regimes give multi-day trends.
@@ -176,7 +180,7 @@ def generate_intraday(
     if interval_min < 1:
         raise ValueError("interval_min must be >= 1")
     spec = _spec(underlying)
-    rng = np.random.default_rng(seed + (0 if spec.name == "NIFTY" else 7919))
+    rng = np.random.default_rng(seed + _SEED_OFFSET.get(spec.name, 7919))
     sessions = trading_days(start, days, holidays)
     o, h, lo, c, v, regimes = _simulate_minutes(spec, len(sessions), rng)
 
@@ -318,11 +322,11 @@ def _shift_for_holidays(d: date, holidays: set[date]) -> date:
     return d
 
 
-def _monthly_expiries(on: date, n: int, holidays: set[date]) -> list[date]:
+def _monthly_expiries(on: date, n: int, holidays: set[date], weekday: int = 1) -> list[date]:
     out: list[date] = []
     y, mth = on.year, on.month
     while len(out) < n:
-        e = _shift_for_holidays(_last_weekday_of_month(y, mth), holidays)
+        e = _shift_for_holidays(_last_weekday_of_month(y, mth, weekday), holidays)
         if e >= on:
             out.append(e)
         mth += 1
@@ -331,8 +335,8 @@ def _monthly_expiries(on: date, n: int, holidays: set[date]) -> list[date]:
     return out
 
 
-def _weekly_expiries(on: date, n: int, holidays: set[date]) -> list[date]:
-    first = on + timedelta(days=(1 - on.weekday()) % 7)  # next Tuesday (or today)
+def _weekly_expiries(on: date, n: int, holidays: set[date], weekday: int = 1) -> list[date]:
+    first = on + timedelta(days=(weekday - on.weekday()) % 7)  # next expiry weekday (or today)
     out = []
     for i in range(n + 1):
         e = _shift_for_holidays(first + timedelta(weeks=i), holidays)
@@ -356,8 +360,9 @@ def synthetic_master_rows(
     """Instrument-master rows in OpenAPIScripMaster.json format (all values are strings).
 
     NIFTY: weekly Tuesday expiries + monthly (last Tuesday), lot 65, strike step 50.
-    BANKNIFTY: monthly (last Tuesday) only, lot 30, strike step 100. Tuesday holidays shift to the previous
-    trading day. Includes AMXIDX index rows for NIFTY, BANKNIFTY and INDIA VIX.
+    BANKNIFTY: monthly (last Tuesday) only, lot 30, strike step 100.
+    SENSEX (BSE index, derivatives on BFO): weekly Thursday expiries + monthly (last Thursday), lot 20, step 100.
+    Expiry-day holidays shift to the previous trading day. Includes AMXIDX index rows for all three and INDIA VIX.
     """
     hol = set(holidays or ())
     spots = spots or {}
@@ -366,22 +371,25 @@ def synthetic_master_rows(
          "lotsize": "1", "instrumenttype": "AMXIDX", "exch_seg": "NSE", "tick_size": "0.000000"},
         {"token": "99926009", "symbol": "Nifty Bank", "name": "BANKNIFTY", "expiry": "", "strike": "0.000000",
          "lotsize": "1", "instrumenttype": "AMXIDX", "exch_seg": "NSE", "tick_size": "0.000000"},
+        {"token": "99919000", "symbol": "SENSEX", "name": "SENSEX", "expiry": "", "strike": "0.000000",
+         "lotsize": "1", "instrumenttype": "AMXIDX", "exch_seg": "BSE", "tick_size": "0.000000"},
         {"token": "99926017", "symbol": "India VIX", "name": "INDIA VIX", "expiry": "", "strike": "0.000000",
          "lotsize": "1", "instrumenttype": "AMXIDX", "exch_seg": "NSE", "tick_size": "0.000000"},
     ]
     token = 35000
-    freeze = {"NIFTY": "1800", "BANKNIFTY": "600"}
-    for name in ("NIFTY", "BANKNIFTY"):
+    freeze = {"NIFTY": "1800", "BANKNIFTY": "600", "SENSEX": "1000"}
+    for name in UNDERLYINGS:
         spec = SPECS[name]
-        monthly = _monthly_expiries(on, monthlies, hol)
-        option_exps = sorted(set(monthly) | (set(_weekly_expiries(on, weeklies, hol)) if name == "NIFTY"
-                                             else set()))
+        u = UINFO[name]
+        monthly = _monthly_expiries(on, monthlies, hol, u.expiry_weekday)
+        option_exps = sorted(set(monthly) | (set(_weekly_expiries(on, weeklies, hol, u.expiry_weekday))
+                                             if u.weekly_options else set()))
         for e in monthly:
             token += 1
             rows.append({
                 "token": str(token), "symbol": f"{name}{e.strftime('%d%b%y').upper()}FUT", "name": name,
                 "expiry": _fmt_expiry(e), "strike": "-1.000000", "lotsize": str(spec.lot_size),
-                "instrumenttype": "FUTIDX", "exch_seg": "NFO", "tick_size": "5.000000",
+                "instrumenttype": "FUTIDX", "exch_seg": u.fo_exchange, "tick_size": "5.000000",
                 "freeze_qty": freeze[name],
             })
         spot = spots.get(name, spec.base)
@@ -395,7 +403,7 @@ def synthetic_master_rows(
                         "token": str(token),
                         "symbol": f"{name}{e.strftime('%d%b%y').upper()}{int(strike)}{ot}",
                         "name": name, "expiry": _fmt_expiry(e), "strike": f"{strike * 100:.6f}",
-                        "lotsize": str(spec.lot_size), "instrumenttype": "OPTIDX", "exch_seg": "NFO",
+                        "lotsize": str(spec.lot_size), "instrumenttype": "OPTIDX", "exch_seg": u.fo_exchange,
                         "tick_size": "5.000000", "freeze_qty": freeze[name],
                     })
     return rows

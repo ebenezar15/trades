@@ -220,7 +220,7 @@ export function ConnectWizard({ compact }: { compact?: boolean }) {
             <div className="rounded-lg border border-up/40 bg-up/10 p-2.5 text-sm text-up">✓ Connected — IndexEdge is using Angel One real-time data.</div>
           ) : (
             <p className="text-sm text-muted">
-              Link your Angel One account to get real-time NIFTY / BANKNIFTY data (instead of delayed Yahoo or synthetic demo data). Takes about 5 minutes.
+              Link your Angel One account to get real-time NIFTY / BANKNIFTY / SENSEX data (instead of delayed Yahoo or synthetic demo data). Takes about 5 minutes.
             </p>
           )}
           {d.steps.length > 0 && (

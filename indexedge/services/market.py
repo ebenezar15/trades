@@ -20,6 +20,8 @@ import pandas as pd
 from indexedge.core import bus as topics
 from indexedge.core.clock import IST, MARKET_OPEN, Clock
 from indexedge.core.types import Instrument, InstrumentKind, OptionType, Tick
+from indexedge.core.underlyings import INFO as UINFO
+from indexedge.core.underlyings import UNDERLYINGS, fo_exchange, index_tokens
 from indexedge.data.aggregator import CandleAggregator
 from indexedge.data.store import CandleStore, empty_candles
 from indexedge.data.synthetic import generate_intraday, generate_option_chain, trading_days
@@ -27,7 +29,6 @@ from indexedge.features.options import bs_price, enrich_chain, max_pain, oi_wall
 
 log = logging.getLogger(__name__)
 
-UNDERLYINGS = ("NIFTY", "BANKNIFTY")
 HISTORY_DAYS = 60
 MIN_SESSIONS = 5
 TickSink = Callable[[Tick], Awaitable[None] | None]
@@ -183,7 +184,7 @@ class MarketData:
         end = today if (self.clock.is_trading_day(today) and self.clock.now().time() >= MARKET_OPEN
                         and not self.clock.is_market_open()) else self.clock.previous_trading_day(today)
         start = _start_for(end, days, hol)
-        seed = 7 if underlying == "NIFTY" else 11
+        seed = {"NIFTY": 7, "BANKNIFTY": 11, "SENSEX": 13}.get(underlying, 17)
         return generate_intraday(underlying, days=days, interval_min=5, seed=seed, start=start, holidays=hol)
 
     # ------------------------------------------------------------------ live feed
@@ -195,15 +196,15 @@ class MarketData:
             self._demo_task = asyncio.create_task(self._demo_loop())
             return
         tokens: list[tuple[str, str]] = []
-        idx = self.settings.broker.index_tokens
+        idx = index_tokens(self.settings.broker.index_tokens)
         for u in UNDERLYINGS:
             if u in idx:
-                tokens.append(("NSE", idx[u]))
+                tokens.append((UINFO[u].index_exchange, idx[u]))
                 self._token_map[idx[u]] = u
             if self.master is not None:
                 fut = self.master.nearest_future(u, self.clock.today())
                 if fut is not None:
-                    tokens.append(("NFO", fut.token))
+                    tokens.append((fut.exchange or fo_exchange(u), fut.token))
                     self._token_map[fut.token] = f"FUT:{u}"
         if "INDIAVIX" in idx:
             tokens.append(("NSE", idx["INDIAVIX"]))
@@ -307,7 +308,8 @@ class MarketData:
     # ------------------------------------------------------------------ demo feed
     async def _demo_loop(self) -> None:
         """Synthetic ticks during market hours so the whole app can be explored without a broker."""
-        vol_per_s = {"NIFTY": 0.009 / math.sqrt(22500), "BANKNIFTY": 0.011 / math.sqrt(22500)}
+        vol_per_s = {"NIFTY": 0.009 / math.sqrt(22500), "BANKNIFTY": 0.011 / math.sqrt(22500),
+                     "SENSEX": 0.009 / math.sqrt(22500)}
         for u in UNDERLYINGS:
             self._token_map.setdefault(f"DEMO_{u}", u)
             self._token_map.setdefault(f"DEMO_FUT_{u}", f"FUT:{u}")
@@ -318,7 +320,7 @@ class MarketData:
                 if not self.clock.is_market_open(now):
                     continue
                 for u in UNDERLYINGS:
-                    last = self.ltp.get(u) or self.prev_close.get(u) or (25000.0 if u == "NIFTY" else 56000.0)
+                    last = self.ltp.get(u) or self.prev_close.get(u) or {"NIFTY": 25000.0, "BANKNIFTY": 56000.0}.get(u, 82000.0)
                     if u not in self.day_open or self.frames[u].empty or \
                             self.frames[u].index[-1].date() < now.date() and u not in self._demo_cumvol:
                         self.day_open[u] = last
@@ -396,7 +398,7 @@ class MarketData:
             rows: list[dict] = []
             toks = list(by_token)
             for k in range(0, len(toks), 50):
-                res = await asyncio.to_thread(sc.getMarketData, "FULL", {"NFO": toks[k:k + 50]})
+                res = await asyncio.to_thread(sc.getMarketData, "FULL", {fo_exchange(underlying): toks[k:k + 50]})
                 for q in ((res or {}).get("data") or {}).get("fetched", []) or []:
                     inst = by_token.get(str(q.get("symbolToken")))
                     if inst is None:

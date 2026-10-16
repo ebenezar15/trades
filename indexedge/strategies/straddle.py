@@ -32,7 +32,9 @@ from indexedge.strategies.base import BarView, Strategy, fmt, hhmm_to_min
 SQRT_2_PI = math.sqrt(2.0 / math.pi)
 SESSION_MIN = 375.0
 CLOSE_MIN = 15 * 60 + 30
-STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0}
+STRIKE_STEP = {"NIFTY": 50.0, "BANKNIFTY": 100.0, "SENSEX": 100.0}
+# NSE index options expire on Tuesdays, BSE (SENSEX) on Thursdays
+EXPIRY_WEEKDAY = {"NIFTY": 1, "BANKNIFTY": 1, "SENSEX": 3}
 
 
 @dataclass
@@ -75,13 +77,19 @@ class _PremiumStrategy(Strategy):
     backtest_quality = "approximate"
     regimes: ClassVar[set[Regime] | None] = {Regime.RANGE}
 
-    def _expiry_for(self, d: date) -> date:
-        dates = _parse_dates(self.params.get("expiry_dates"))
+    def _expiry_for(self, d: date, underlying: str = "NIFTY") -> date:
+        raw = self.params.get("expiry_dates")
+        if isinstance(raw, dict):                      # per-underlying, filled from the instrument master
+            raw = raw.get(underlying)
+        dates = _parse_dates(raw)
         if dates:
             nxt = sorted(x for x in dates if x >= d)
             if nxt:
                 return nxt[0]
-        wd = int(self.params.get("expiry_weekday", 1))
+        wd = self.params.get("expiry_weekday")
+        if isinstance(wd, dict):
+            wd = wd.get(underlying)
+        wd = int(wd if wd is not None else EXPIRY_WEEKDAY.get(underlying, 1))
         return d + timedelta(days=(wd - d.weekday()) % 7)
 
     def _iv(self, underlying: str, extra: dict[str, Any] | None) -> float:
@@ -95,8 +103,13 @@ class _PremiumStrategy(Strategy):
 
     def info(self) -> dict[str, Any]:
         out = super().info()
-        ed = _parse_dates(out["params"].get("expiry_dates"))
-        out["params"]["expiry_dates"] = sorted(d.isoformat() for d in ed) if ed else None
+        raw = out["params"].get("expiry_dates")
+        if isinstance(raw, dict):
+            out["params"]["expiry_dates"] = {u: sorted(d.isoformat() for d in (_parse_dates(v) or ()))
+                                             for u, v in raw.items()}
+        else:
+            ed = _parse_dates(raw)
+            out["params"]["expiry_dates"] = sorted(d.isoformat() for d in ed) if ed else None
         return out
 
 
@@ -136,7 +149,7 @@ strike the fly expires close to maximum profit.
 within
 minutes. Event days and trend days hurt most.
 
-**Rules (defaults).** Expiry days only (NSE calendar; default Tuesdays). Entry 10:00. Wings at ±1.0× the
+**Rules (defaults).** Expiry days only (from the instrument master; NSE indices Tuesday, SENSEX Thursday). Entry 10:00. Wings at ±1.0× the
 combined straddle premium. Stop when the fly's value rises 25% above the entry credit, **or** spot moves
 beyond
 strike ± 0.8 × the entry straddle premium. Once +30% in profit, trail the stop to lock +10%. Exit 15:15.
@@ -155,9 +168,9 @@ class Straddle920(_PremiumStrategy):
         "leg_sl_pct": 25.0,
         "sl_buffer_pct": 2.0,
         "move_to_cost": True,
-        "iv": {"NIFTY": 0.12, "BANKNIFTY": 0.14},
+        "iv": {"NIFTY": 0.12, "BANKNIFTY": 0.14, "SENSEX": 0.12},
         "expiry_dates": None,
-        "expiry_weekday": 1,
+        "expiry_weekday": {"NIFTY": 1, "BANKNIFTY": 1, "SENSEX": 3},
     }
     learn = LEARN_920
 
@@ -177,7 +190,7 @@ class Straddle920(_PremiumStrategy):
                 continue
             spot = float(c[i])
             k = self._strike(spot, underlying)
-            exp = self._expiry_for(d)
+            exp = self._expiry_for(d, underlying)
             at = bv.index[i].to_pydatetime() + timedelta(minutes=bv.step)
             tv = atm_tv(spot, iv, time_to_expiry(at, exp))
             ce, pe = leg_values(spot, k, tv)
@@ -203,7 +216,7 @@ class Straddle920(_PremiumStrategy):
         bars = bars[bars.index.date == bars.index[0].date()]
         spot = signal.entry
         k = self._strike(spot, signal.underlying)
-        exp = self._expiry_for(signal.ts.date())
+        exp = self._expiry_for(signal.ts.date(), signal.underlying)
         iv = float(self._param("iv", signal.underlying))
         step = int((bars.index[1] - bars.index[0]).total_seconds() // 60) if len(bars) > 1 else 5
         at0 = signal.ts + timedelta(minutes=step)
@@ -262,9 +275,9 @@ class ExpiryStraddle(_PremiumStrategy):
         "lock_trigger_pct": 30.0,
         "lock_pct": 10.0,
         "sl_buffer_pct": 2.0,
-        "iv": {"NIFTY": 0.12, "BANKNIFTY": 0.14},
+        "iv": {"NIFTY": 0.12, "BANKNIFTY": 0.14, "SENSEX": 0.12},
         "expiry_dates": None,
-        "expiry_weekday": 1,
+        "expiry_weekday": {"NIFTY": 1, "BANKNIFTY": 1, "SENSEX": 3},
     }
     learn = LEARN_EXPIRY
 
@@ -278,7 +291,7 @@ class ExpiryStraddle(_PremiumStrategy):
         self, spot: float, at: datetime, underlying: str, iv: float
     ) -> tuple[float, float, float, float]:
         k = self._strike(spot, underlying)
-        exp = self._expiry_for(at.date())
+        exp = self._expiry_for(at.date(), underlying)
         tv = atm_tv(spot, iv, time_to_expiry(at, exp))
         ce, pe = leg_values(spot, k, tv)
         step = STRIKE_STEP.get(underlying, 50.0)
@@ -296,7 +309,7 @@ class ExpiryStraddle(_PremiumStrategy):
         skip = _parse_dates((extra or {}).get("skip_days")) or set()
         out: list[StrategySignal] = []
         for d, s, e in bv.day_slices():
-            if self._expiry_for(d) != d or d in skip:
+            if self._expiry_for(d, underlying) != d or d in skip:
                 continue
             i = next((k for k in range(s, e) if bv.close_min[k] == when), None)
             if i is None or not np.isfinite(c[i]):
@@ -331,7 +344,7 @@ class ExpiryStraddle(_PremiumStrategy):
         spot = signal.entry
         at0 = signal.ts + timedelta(minutes=step)
         k, straddle, w, _tv = self._setup(spot, at0, signal.underlying, iv)
-        exp = self._expiry_for(signal.ts.date())
+        exp = self._expiry_for(signal.ts.date(), signal.underlying)
         credit = self._fly_value(spot, k, w, atm_tv(spot, iv, time_to_expiry(at0, exp)))
         wing0 = max(straddle - credit, 0.05)
         stop_val = credit * (1 + p["sl_pct"] / 100.0)

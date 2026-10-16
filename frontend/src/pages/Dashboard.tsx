@@ -19,13 +19,14 @@ function IndexTab({ ix, active, onClick, live }: { ix: IndexOverview; active: bo
   return (
     <button
       onClick={onClick}
-      className={cls('min-w-0 flex-1 rounded-xl border p-2.5 text-left transition sm:p-3', active ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:bg-panel2')}
+      className={cls('min-w-0 flex-1 rounded-xl border p-2 text-left transition sm:p-3', active ? 'border-accent bg-accent/10' : 'border-line bg-panel hover:bg-panel2')}
     >
-      <div className="flex items-center justify-between gap-1 text-xs font-semibold text-muted">
-        <span>{ix.underlying}</span>
+      {/* stacked on phones so three indices fit side by side; one row from sm up */}
+      <div className="flex flex-col text-[11px] font-semibold text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-1 sm:text-xs">
+        <span className="truncate">{ix.underlying}</span>
         <span className={pnlColor(ix.change_pct)}>{pct(ix.change_pct, 2, true)}</span>
       </div>
-      <div className="truncate font-mono text-lg font-bold sm:text-xl">{fmt(ltp)}</div>
+      <div className="truncate font-mono text-[15px] font-bold sm:text-xl">{fmt(ltp)}</div>
     </button>
   );
 }

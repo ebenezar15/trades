@@ -129,10 +129,12 @@ async def connection_test(rt: Any) -> dict[str, Any]:
             hint = _hint(msg)
             add("Login (client code + PIN + TOTP)", False, msg + (f" — {hint}" if hint else ""))
             return {"ok": False, "steps": steps}
-        idx = rt.settings.broker.index_tokens
-        for u, sym in (("NIFTY", "Nifty 50"), ("BANKNIFTY", "Nifty Bank")):
+        from indexedge.core.underlyings import INFO, UNDERLYINGS, index_tokens
+
+        idx = index_tokens(rt.settings.broker.index_tokens)
+        for u in UNDERLYINGS:
             try:
-                px = await broker.get_ltp("NSE", idx[u], sym)
+                px = await broker.get_ltp(INFO[u].index_exchange, idx[u], INFO[u].index_symbol)
                 add(f"Live price {u}", px > 0, f"{px:,.2f}")
             except Exception as exc:  # noqa: BLE001
                 ok = False

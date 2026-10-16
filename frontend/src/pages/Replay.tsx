@@ -5,6 +5,7 @@ import { CandleChart, type ChartLine, type ChartMarker } from '../components/cha
 import { Card, Chip, Empty, ErrorBox, Loading, PageHeader, Segmented } from '../components/ui';
 import { cls, fmt, timeIST, titleCase } from '../lib/format';
 import { useApi } from '../lib/useApi';
+import { UNDERLYING_OPTIONS } from '../lib/underlyings';
 
 function outcomesList(o: ReplayOutcome[] | Record<string, ReplayOutcome> | undefined): ReplayOutcome[] {
   if (!o) return [];
@@ -79,7 +80,7 @@ export default function Replay() {
         subtitle="Step through a past session bar by bar; signals appear exactly when they would have."
         right={
           <>
-            <Segmented value={u} onChange={setU} options={[{ value: 'NIFTY', label: 'NIFTY' }, { value: 'BANKNIFTY', label: 'BANKNIFTY' }]} />
+            <Segmented value={u} onChange={setU} options={UNDERLYING_OPTIONS} />
             <select className="input w-auto" value={day} onChange={(e) => setDay(e.target.value)} aria-label="Day">
               {days.data?.days.map((d) => <option key={d}>{d}</option>)}
             </select>

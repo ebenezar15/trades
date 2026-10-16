@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from indexedge.context.engine import snapshot_to_dict
+from indexedge.core.underlyings import UNDERLYINGS
 from indexedge.features.indicators import cpr, daily_ohlc
 from indexedge.news.calendar import event_to_dict
 
@@ -34,9 +35,9 @@ def premarket_report(rt: Any) -> dict[str, Any]:
     if ctx_d:
         gift = (ctx_d.get("inputs") or {}).get("gift_nifty") or {}
         gap = gift.get("gap_expectation_pct", gift.get("change_pct"))
-    levels = {u: _levels(rt.market.frame(u)) for u in ("NIFTY", "BANKNIFTY")}
+    levels = {u: _levels(rt.market.frame(u)) for u in UNDERLYINGS}
     regimes = {}
-    for u in ("NIFTY", "BANKNIFTY"):
+    for u in UNDERLYINGS:
         try:
             rt.signals.compute_features(u)
         except Exception:  # noqa: BLE001

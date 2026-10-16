@@ -44,8 +44,8 @@ class GapFill(Strategy):
     )
     required_columns = ("open", "high", "low", "close", "atr14", "vwap", "prev_close")
     default_params: ClassVar[dict[str, Any]] = {
-        "min_gap_pct": {"NIFTY": 0.30, "BANKNIFTY": 0.40},
-        "max_gap_pct": {"NIFTY": 1.50, "BANKNIFTY": 1.80},
+        "min_gap_pct": {"NIFTY": 0.30, "BANKNIFTY": 0.40, "SENSEX": 0.30},
+        "max_gap_pct": {"NIFTY": 1.50, "BANKNIFTY": 1.80, "SENSEX": 1.50},
         "first_minutes": 15,
         "go_range_mult": 1.2,
         "go_lookback_days": 10,

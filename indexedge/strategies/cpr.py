@@ -79,7 +79,7 @@ class CprPivot(Strategy):
     required_columns = ("open", "high", "low", "close", "atr14", "pivot", "tc", "bc", "r1", "r2", "s1", "s2",
                         "cpr_width_pct")
     default_params: ClassVar[dict[str, Any]] = {
-        "narrow_pct": {"NIFTY": 0.15, "BANKNIFTY": 0.20},
+        "narrow_pct": {"NIFTY": 0.15, "BANKNIFTY": 0.20, "SENSEX": 0.15},
         "wide_pct": 0.50,
         "pct_lookback": 20,
         "htf_minutes": 15,

@@ -19,6 +19,7 @@ from indexedge.core import bus as topics
 from indexedge.core.bus import EventBus
 from indexedge.core.clock import IST, Clock, parse_hhmm
 from indexedge.core.types import ExecutionMode, Mode, Signal
+from indexedge.core.underlyings import UNDERLYINGS
 from indexedge.data.instruments import InstrumentMaster
 from indexedge.data.store import CandleStore
 from indexedge.data.synthetic import synthetic_master_rows
@@ -115,7 +116,7 @@ class Runtime:
         await self.market.load_history()
         if self.market.demo:
             # demo instrument master centred on the (synthetic) current prices so ATM strikes exist
-            spots = {u: self.market.prev_close[u] for u in ("NIFTY", "BANKNIFTY") if u in self.market.prev_close}
+            spots = {u: self.market.prev_close[u] for u in UNDERLYINGS if u in self.market.prev_close}
             self.master = InstrumentMaster.from_json(
                 synthetic_master_rows(self.clock.today(), holidays=self.clock.holidays, spots=spots))
             self.market.master = self.master
@@ -138,7 +139,7 @@ class Runtime:
         self.market.add_tick_sink(lambda t: self.trades.on_tick(t))
         self._wire_bus()
         self._load_reports_cache()
-        for u in ("NIFTY", "BANKNIFTY"):
+        for u in UNDERLYINGS:
             try:
                 await asyncio.to_thread(self.signals.compute_features, u)
             except Exception:
@@ -190,7 +191,7 @@ class Runtime:
         s = self.settings
         self.calendar = EventCalendar(s, self.clock)
         try:
-            self.calendar.set_expiries({u: self.master.expiries(u, self.clock.today()) for u in ("NIFTY", "BANKNIFTY")})
+            self.calendar.set_expiries({u: self.master.expiries(u, self.clock.today()) for u in UNDERLYINGS})
         except Exception:
             log.warning("could not load expiries into calendar")
         if self.market.demo:
@@ -242,7 +243,7 @@ class Runtime:
 
     def _lot_sizes(self) -> dict[str, int]:
         out = {}
-        for u in ("NIFTY", "BANKNIFTY"):
+        for u in UNDERLYINGS:
             try:
                 out[u] = int(self.master.lot_size(u, self.clock.today()))
             except Exception:
@@ -254,8 +255,7 @@ class Runtime:
         if strat is None or "expiry_dates" not in strat.params:
             return
         try:
-            strat.params["expiry_dates"] = set(self.master.expiries("NIFTY")) | set(
-                self.master.expiries("NIFTY", None))
+            strat.params["expiry_dates"] = {u: sorted(set(self.master.expiries(u))) for u in UNDERLYINGS}
         except Exception:
             pass
 
@@ -310,7 +310,7 @@ class Runtime:
             if sid in self.settings.strategies.enabled:
                 enabled[sid] = bool(self.settings.strategies.enabled[sid])
             else:
-                enabled[sid] = any(self.strategy_enabled(sid, u) for u in ("NIFTY", "BANKNIFTY"))
+                enabled[sid] = any(self.strategy_enabled(sid, u) for u in UNDERLYINGS)
         eff.strategies.enabled = enabled
         return eff
 
@@ -322,7 +322,7 @@ class Runtime:
         (or for both underlyings when ``underlying`` is None)."""
         if sid in self.settings.strategies.enabled:
             return bool(self.settings.strategies.enabled[sid])
-        unders = [underlying] if underlying else ["NIFTY", "BANKNIFTY"]
+        unders = [underlying] if underlying else list(UNDERLYINGS)
         for u in unders:
             rep = self.reports.get(u, {}).get(sid) or {}
             if not (rep.get("status") == "validated" and rep.get("data_source") != "synthetic"):
@@ -385,7 +385,7 @@ class Runtime:
         try:
             self.lab._cache.clear()
             reports = {}
-            for u in ("NIFTY", "BANKNIFTY"):
+            for u in UNDERLYINGS:
                 reports[u] = await asyncio.to_thread(self.lab.report_all, u, days)
             self.reports = reports
             self.report_meta = {"ts": self.clock.now().isoformat(), "days": days,
@@ -402,7 +402,7 @@ class Runtime:
         from indexedge.services.training import train_all
 
         self.lab._cache.clear()
-        sources = {u: self.lab.data_source(u, 250) for u in ("NIFTY", "BANKNIFTY")}
+        sources = {u: self.lab.data_source(u, 250) for u in UNDERLYINGS}
         if any(v != "broker" for v in sources.values()):
             self.jobs["retrain"] = {"status": "skipped", "at": self.clock.now().isoformat(),
                                     "reason": "Models are trained only on real broker history (need ≥20 sessions); "
@@ -410,7 +410,7 @@ class Runtime:
             return
         self.jobs["retrain"] = {"status": "running", "started": self.clock.now().isoformat()}
         try:
-            data = {u: self.lab.candles(250, (u,))[u] for u in ("NIFTY", "BANKNIFTY")}
+            data = {u: self.lab.candles(250, (u,))[u] for u in UNDERLYINGS}
             res = await asyncio.to_thread(train_all, data, self.strategies, self.settings, self.registry)
             self.jobs["retrain"] = {"status": "ok", "finished": self.clock.now().isoformat(),
                                     "models": {k: (v.get("n") if isinstance(v, dict) else None)
@@ -580,7 +580,8 @@ class Runtime:
         await self.context.refresh()
         stale_synthetic = (self.report_meta.get("data_source") == "synthetic"
                            and self.market.data_source != "synthetic")
-        missing = [sid for sid in self.strategies if sid not in self.reports.get("NIFTY", {})]
+        # re-validate when a strategy or an index (e.g. SENSEX, added later) has no report yet
+        missing = [(u, sid) for u in UNDERLYINGS for sid in self.strategies if sid not in self.reports.get(u, {})]
         if not self.reports or stale_synthetic or missing:
             await self.refresh_reports()
         if self.trades.open_trades or not self.market.demo:
