@@ -12,7 +12,7 @@ Without any PCR input ``scan`` returns ``[]`` (reason: "no option-chain / OI dat
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -49,7 +49,7 @@ class OiPcr(Strategy):
     instrument_hint = "option"
     backtest_quality = "approximate"
     required_columns = ("open", "high", "low", "close", "atr14", "vwap")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "pcr_bull": 1.30,
         "pcr_bear": 0.70,
         "pcr_shift": 0.15,

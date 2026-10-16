@@ -1,7 +1,7 @@
 """Trend-following strategies: ``ema_supertrend_adx`` and ``triple_supertrend``."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -59,10 +59,10 @@ class EmaSupertrendAdx(Strategy):
     id = "ema_supertrend_adx"
     name = "EMA + Supertrend + ADX"
     description = "EMA 9/21 trend with a Supertrend(10,3) close and ADX(14) > 22 confirmation."
-    regimes = {Regime.TREND_UP, Regime.TREND_DOWN}
+    regimes: ClassVar[set[Regime] | None] = {Regime.TREND_UP, Regime.TREND_DOWN}
     required_columns = ("open", "high", "low", "close", "atr14", "ema9", "ema21", "ema200", "supertrend",
                         "st_dir", "adx14", "plus_di", "minus_di")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "adx_min": 22.0,
         "ema200_filter": True,
         "target_r": 2.5,
@@ -70,7 +70,7 @@ class EmaSupertrendAdx(Strategy):
         "entry_start": "09:30",
         "entry_end": "14:45",
     }
-    param_grid = {"adx_min": [20.0, 22.0, 25.0]}
+    param_grid: ClassVar[dict[str, list[Any]] | None] = {"adx_min": [20.0, 22.0, 25.0]}
     learn = LEARN_EMA
 
     def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
@@ -118,10 +118,10 @@ class TripleSupertrend(Strategy):
     id = "triple_supertrend"
     name = "Triple Supertrend"
     description = "Enter when Supertrends (10,1), (11,2), (12,3) first agree, with ADX(14) > 20."
-    regimes = {Regime.TREND_UP, Regime.TREND_DOWN}
+    regimes: ClassVar[set[Regime] | None] = {Regime.TREND_UP, Regime.TREND_DOWN}
     time_exit = "15:00"
     required_columns = ("open", "high", "low", "close", "atr14", "st_agree", "st_12_3", "adx14")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "adx_min": 20.0,
         "target_r": 2.0,
         "min_stop_atr": 0.3,
@@ -153,8 +153,8 @@ class TripleSupertrend(Strategy):
             reasons = [
                 f"All three Supertrends (10,1), (11,2), (12,3) turned {word} together on this bar",
                 f"ADX {ad[i]:.1f} > {p['adx_min']}",
-                f"Stop {fmt(stop)} at the ST(12,3) line, risk {fmt(abs(entry - stop))} pts;"
-                f" target {fmt(tg[0])} ({p['target_r']}R), time exit {self.time_exit}",
+                (f"Stop {fmt(stop)} at the ST(12,3) line, risk {fmt(abs(entry - stop))} pts;"
+                f" target {fmt(tg[0])} ({p['target_r']}R), time exit {self.time_exit}"),
             ]
             out.append(self._signal(bv, i, underlying, side, entry, stop, tg, reasons))
         return out

@@ -1,7 +1,7 @@
 """``orb15``: Opening Range Breakout (15-minute range; ``range_minutes=5`` gives the first-candle variant)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -37,8 +37,8 @@ class ORB15(Strategy):
     id = "orb15"
     name = "Opening Range Breakout"
     description = "Trade a 5-min close beyond the 09:15–09:30 range with volume confirmation."
-    regimes = {Regime.TREND_UP, Regime.TREND_DOWN, Regime.HIGH_VOL}
-    default_params: dict[str, Any] = {
+    regimes: ClassVar[set[Regime] | None] = {Regime.TREND_UP, Regime.TREND_DOWN, Regime.HIGH_VOL}
+    default_params: ClassVar[dict[str, Any]] = {
         "range_minutes": 15,
         "buffer_pct": 0.05,
         "vol_mult": 1.5,
@@ -48,7 +48,7 @@ class ORB15(Strategy):
         "entry_end": "11:30",
         "targets_r": [1.0, 2.0],
     }
-    param_grid = {"vol_mult": [1.2, 1.5, 2.0]}
+    param_grid: ClassVar[dict[str, list[Any]] | None] = {"vol_mult": [1.2, 1.5, 2.0]}
     learn = LEARN
 
     def _scan(self, feat: pd.DataFrame, underlying: str, extra: dict[str, Any] | None) -> list[StrategySignal]:
@@ -81,7 +81,9 @@ class ORB15(Strategy):
                 for side, level in ((Side.BUY, rh * (1 + buf)), (Side.SELL, rl * (1 - buf))):
                     if side in done or side.sign * (c[i] - level) <= 0:
                         continue
-                    has_vol = bool(np.isfinite(vol_avg[i]) and vol_avg[i] > 0)
+                    if not np.isfinite(vol_avg[i]):
+                        continue                # volume average still warming up
+                    has_vol = bool(vol_avg[i] > 0)   # all-zero volume = spot index without volume
                     ratio = v[i] / vol_avg[i] if has_vol else float("nan")
                     if has_vol and ratio < float(p["vol_mult"]):
                         continue
@@ -94,13 +96,13 @@ class ORB15(Strategy):
                     word = "high" if side is Side.BUY else "low"
                     lvl = rh if side is Side.BUY else rl
                     reasons = [
-                        f"Close {fmt(entry)} broke the {p['range_minutes']}-min opening-range {word} {fmt(lvl)}"
-                        f" (buffer {p['buffer_pct']}%)",
+                        (f"Close {fmt(entry)} broke the {p['range_minutes']}-min opening-range {word} {fmt(lvl)}"
+                        f" (buffer {p['buffer_pct']}%)"),
                         f"Opening range {fmt(rl)}–{fmt(rh)} is {width_pct:.2f}% wide (limit {max_rng}%)",
                         (f"Volume {ratio:.1f}× the {n_avg}-bar average (needs ≥ {p['vol_mult']}×)" if has_vol
                          else "Volume unavailable, volume filter skipped"),
-                        f"Stop {fmt(stop)} ({'range end' if stop == opposite else 'capped at 3×ATR'}),"
-                        f" risk {fmt(risk)} pts; targets {', '.join(fmt(t) for t in targets)}",
+                        (f"Stop {fmt(stop)} ({'range end' if stop == opposite else 'capped at 3×ATR'}),"
+                        f" risk {fmt(risk)} pts; targets {', '.join(fmt(t) for t in targets)}"),
                     ]
                     out.append(self._signal(bv, i, underlying, side, entry, stop, targets, reasons))
                     done.add(side)

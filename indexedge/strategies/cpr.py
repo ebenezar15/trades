@@ -1,7 +1,7 @@
 """CPR strategies: ``cpr_pivot`` (narrow-day breakout / wide-day reversion) and ``cpr_vwap`` (confluence)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -78,7 +78,7 @@ class CprPivot(Strategy):
     description = "Narrow-CPR breakout beyond TC/BC, or wide-CPR fade of R1/S1 back to the pivot."
     required_columns = ("open", "high", "low", "close", "atr14", "pivot", "tc", "bc", "r1", "r2", "s1", "s2",
                         "cpr_width_pct")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "narrow_pct": {"NIFTY": 0.15, "BANKNIFTY": 0.20},
         "wide_pct": 0.50,
         "pct_lookback": 20,
@@ -140,8 +140,8 @@ class CprPivot(Strategy):
                         reasons = [
                             f"Today is a {kind}: breakout mode",
                             f"{hm}-min close {fmt(cc)} {'above' if sg > 0 else 'below'} {names[0]} {fmt(lvl)}",
-                            f"Stop {fmt(stop)} ({'CPR' if stop == opp else 'signal-candle extreme'}),"
-                            f" targets {names[1]} {', '.join(fmt(t) for t in tg)}",
+                            (f"Stop {fmt(stop)} ({'CPR' if stop == opp else 'signal-candle extreme'}),"
+                            f" targets {names[1]} {', '.join(fmt(t) for t in tg)}"),
                         ]
                         out.append(self._signal(bv, i, underlying, side, entry, stop, tg, reasons))
             elif wide:
@@ -173,10 +173,10 @@ class CprPivot(Strategy):
                             break
                         reasons = [
                             f"Today is a {kind}: reversion mode",
-                            f"First touch of {name} {fmt(lvl)} rejected: close {fmt(entry)} back"
-                            f" {'below' if side is Side.SELL else 'above'} it",
-                            f"Stop {fmt(stop)} = {name} ± {p['level_stop_atr']}×ATR(15-min) {fmt(a15_base[i])};"
-                            f" target pivot {fmt(tgt)}",
+                            (f"First touch of {name} {fmt(lvl)} rejected: close {fmt(entry)} back"
+                            f" {'below' if side is Side.SELL else 'above'} it"),
+                            (f"Stop {fmt(stop)} = {name} ± {p['level_stop_atr']}×ATR(15-min) {fmt(a15_base[i])};"
+                            f" target pivot {fmt(tgt)}"),
                         ]
                         out.append(self._signal(bv, i, underlying, side, entry, stop, [tgt], reasons))
                         break
@@ -189,7 +189,7 @@ class CprVwap(Strategy):
     description = "09:30 bias above TC and VWAP (or below BC and VWAP); buy the pullback to the higher level."
     required_columns = ("open", "high", "low", "close", "atr14", "vwap", "tc", "bc", "r1", "r2", "s1", "s2",
                         "cpr_width_pct")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "max_width_pct": 0.35,
         "bias_time": "09:30",
         "touch_atr": 0.1,
@@ -244,8 +244,8 @@ class CprVwap(Strategy):
                 rel = "above" if side is Side.BUY else "below"
                 reasons = [
                     f"CPR width {wd[s]:.3f}% ≤ {p['max_width_pct']}% (narrow/normal day)",
-                    f"At {p['bias_time']} close {fmt(c[b])} was {rel} {names[0]} {fmt(tc[b] if sg > 0 else bc[b])}"
-                    f" and VWAP {fmt(vw[b])}",
+                    (f"At {p['bias_time']} close {fmt(c[b])} was {rel} {names[0]} {fmt(tc[b] if sg > 0 else bc[b])}"
+                    f" and VWAP {fmt(vw[b])}"),
                     f"Pulled back to {fmt(lvl)} and closed {rel} it at {fmt(entry)}",
                     f"Stop {fmt(stop)}, targets {', '.join(fmt(t) for t in tg)}",
                 ]

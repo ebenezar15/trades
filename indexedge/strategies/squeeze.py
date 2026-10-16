@@ -1,7 +1,7 @@
 """``squeeze_breakout``: TTM-style volatility squeeze (Bollinger inside Keltner) breakout on 15-min bars."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -38,7 +38,7 @@ class SqueezeBreakout(Strategy):
     name = "Volatility Squeeze Breakout"
     description = "Trade the first bar after a ≥6-bar BB-inside-KC squeeze in the momentum direction."
     timeframe = "15m"
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "htf_minutes": 15,
         "min_squeeze_bars": 6,
         "atr_stop": 1.5,
@@ -89,8 +89,8 @@ class SqueezeBreakout(Strategy):
             tg = r_targets(side, entry, stop, [p["target_r"]])
             trend = "rising" if side is Side.BUY else "falling"
             reasons = [
-                f"Bollinger(20,2) was inside Keltner(20,1.5) for {k} {hm}-min bars (needs ≥ {nmin});"
-                " the squeeze fired on this bar",
+                (f"Bollinger(20,2) was inside Keltner(20,1.5) for {k} {hm}-min bars (needs ≥ {nmin});"
+                " the squeeze fired on this bar"),
                 f"Momentum histogram {mom[j]:+.1f} and {trend} (prev {mom[j - 1]:+.1f})",
                 f"Squeeze range {fmt(box_lo)}–{fmt(box_hi)}; stop {fmt(stop)}, ATR({hm}m) {fmt(a[j])}",
                 f"Target {fmt(tg[0])} ({p['target_r']}R)",

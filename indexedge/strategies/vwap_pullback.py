@@ -1,7 +1,7 @@
 """``vwap_pullback``: trend-continuation entry on a pullback to session VWAP."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -36,9 +36,9 @@ class VWAPPullback(Strategy):
     id = "vwap_pullback"
     name = "VWAP Pullback"
     description = "Join an established intraday trend on a pullback to VWAP and a strong re-close."
-    regimes = {Regime.TREND_UP, Regime.TREND_DOWN}
+    regimes: ClassVar[set[Regime] | None] = {Regime.TREND_UP, Regime.TREND_DOWN}
     required_columns = ("open", "high", "low", "close", "atr14", "vwap", "ema9", "ema21")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "trend_frac": 0.70,
         "touch_atr": 0.1,
         "pullback_bars": 3,
@@ -98,13 +98,13 @@ class VWAPPullback(Strategy):
                     tg = r_targets(side, entry, stop, [p["target_r"]])
                     trend = "above" if side is Side.BUY else "below"
                     reasons = [
-                        f"Close {trend} VWAP on {frac * 100:.0f}% of today's bars (needs ≥"
-                        f" {p['trend_frac'] * 100:.0f}%)",
+                        (f"Close {trend} VWAP on {frac * 100:.0f}% of today's bars (needs ≥"
+                        f" {p['trend_frac'] * 100:.0f}%)"),
                         f"EMA 9 {fmt(e9[i])} {'>' if side is Side.BUY else '<'} EMA 21 {fmt(e21[i])}",
                         f"Pulled back to VWAP {fmt(vw[i])} (extreme {fmt(swing)}) within {nb} bars",
                         f"Close {fmt(entry)} back {trend} VWAP with body {body / rng * 100:.0f}% of the candle",
-                        f"Stop {fmt(stop)}, risk {fmt(abs(entry - stop))} pts, target {fmt(tg[0])}"
-                        f" ({p['target_r']}R)",
+                        (f"Stop {fmt(stop)}, risk {fmt(abs(entry - stop))} pts, target {fmt(tg[0])}"
+                        f" ({p['target_r']}R)"),
                     ]
                     out.append(self._signal(bv, i, underlying, side, entry, stop, tg, reasons))
                     count += 1

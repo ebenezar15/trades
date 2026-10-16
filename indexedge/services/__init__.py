@@ -1,1 +1,1 @@
-"""Application services that orchestrate several modules (training, ...)."""
+"""Application services that compose lower-level modules (strategy lab, ...)."""

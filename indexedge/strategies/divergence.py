@@ -1,7 +1,7 @@
 """``rsi_divergence``: regular RSI(14) divergence reversal at confirmed swing pivots (no look-ahead)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 import pandas as pd
@@ -38,9 +38,9 @@ class RsiDivergence(Strategy):
     id = "rsi_divergence"
     name = "RSI Divergence Reversal"
     description = "Fade a price extreme that RSI(14) does not confirm, after a confirmed swing pivot."
-    regimes = {Regime.RANGE, Regime.HIGH_VOL}
+    regimes: ClassVar[set[Regime] | None] = {Regime.RANGE, Regime.HIGH_VOL}
     required_columns = ("open", "high", "low", "close", "atr14", "rsi14", "vwap")
-    default_params: dict[str, Any] = {
+    default_params: ClassVar[dict[str, Any]] = {
         "swing": 3,
         "min_sep": 5,
         "max_sep": 40,
@@ -111,12 +111,12 @@ class RsiDivergence(Strategy):
                 pw = "higher high" if side is Side.SELL else "lower low"
                 rw = "lower high" if side is Side.SELL else "higher low"
                 reasons = [
-                    f"Regular {kind} divergence: price {pw} {fmt(lo[p1] if sg > 0 else h[p1])} →"
-                    f" {fmt(extreme)} while RSI made a {rw} {r[p1]:.1f} → {r[p2]:.1f}",
+                    (f"Regular {kind} divergence: price {pw} {fmt(lo[p1] if sg > 0 else h[p1])} →"
+                    f" {fmt(extreme)} while RSI made a {rw} {r[p1]:.1f} → {r[p2]:.1f}"),
                     f"Pivots {p2 - p1} bars apart, each confirmed {sw} bars after it formed",
                     f"Close {fmt(entry)} broke the second pivot bar's {'low' if sg < 0 else 'high'} {fmt(lvl)}",
-                    f"Stop {fmt(stop)} beyond the extreme; target {fmt(tgt)}"
-                    f" ({'VWAP' if use_vwap else str(p['target_r']) + 'R'})",
+                    (f"Stop {fmt(stop)} beyond the extreme; target {fmt(tgt)}"
+                    f" ({'VWAP' if use_vwap else str(p['target_r']) + 'R'})"),
                 ]
                 out.append(self._signal(bv, i, underlying, side, entry, stop, [tgt], reasons))
         return out
