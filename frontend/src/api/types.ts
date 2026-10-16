@@ -346,6 +346,10 @@ export interface StrategyInfo {
 }
 export interface StrategiesResponse {
   strategies: StrategyInfo[];
+  /** (ext) when/where the report cards were computed */
+  reports_meta?: { ts?: string; days?: number; data_source?: string } | null;
+  /** (ext) background validation job status */
+  reports_job?: { status?: string; started?: string; finished?: string; error?: string } | null;
 }
 export interface StrategyUpdate {
   enabled?: boolean;

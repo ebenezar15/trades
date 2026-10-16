@@ -112,6 +112,8 @@ export const api = {
   analytics: () => get<AnalyticsResponse>('/api/analytics'),
 
   strategies: () => get<StrategiesResponse>('/api/strategies'),
+  revalidate: () => post<OkResponse>('/api/strategies/revalidate'),
+  retrain: () => post<OkResponse>('/api/models/retrain'),
   updateStrategy: (id: string, update: StrategyUpdate) =>
     post<OkResponse>(`/api/strategies/${encodeURIComponent(id)}`, update),
   backtest: (req: BacktestRequest) => post<BacktestResponse>('/api/backtest', req),

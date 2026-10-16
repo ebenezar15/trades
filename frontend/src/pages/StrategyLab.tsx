@@ -286,11 +286,46 @@ function StrategyCard({ s, onSaved, onBacktest }: { s: StrategyInfo; onSaved: ()
 }
 
 export default function StrategyLab() {
-  const st = useApi(api.strategies);
+  const st = useApi(api.strategies, [], 15000);
   const [bt, setBt] = useState<StrategyInfo | null>(null);
+  const [msg, setMsg] = useState('');
+  const meta = st.data?.reports_meta;
+  const job = st.data?.reports_job;
+  const running = job?.status === 'running';
+  const run = async (fn: () => Promise<{ ok: boolean; message?: string }>) => {
+    try {
+      const r = await fn();
+      setMsg(r.message ?? (r.ok ? 'Started' : 'Not started'));
+      st.reload();
+    } catch (e) {
+      setMsg(String(e));
+    }
+  };
   return (
     <div className="space-y-3">
-      <PageHeader title="Strategy Lab" subtitle="Report cards come from out-of-sample backtests after costs. Validated = PF ≥ 1.3, ≥ 100 trades, max DD ≤ 15R." />
+      <PageHeader
+        title="Strategy Lab"
+        subtitle={
+          <>
+            Report cards come from out-of-sample backtests after costs. Validated = PF ≥ 1.3, ≥ 100 trades, max DD ≤ 15R.
+            {meta?.ts && (
+              <span className="block">
+                Last validated {new Date(meta.ts).toLocaleString()} on {meta.days} days of{' '}
+                <b className={meta.data_source === 'synthetic' ? 'text-warn' : ''}>{meta.data_source === 'synthetic' ? 'SYNTHETIC demo' : 'real broker'}</b> data.
+              </span>
+            )}
+          </>
+        }
+        right={
+          <>
+            <button className="btn" disabled={running} onClick={() => run(api.revalidate)}>
+              {running ? 'Validating…' : 'Revalidate'}
+            </button>
+            <button className="btn" onClick={() => run(api.retrain)}>Retrain models</button>
+            {msg && <span className="text-xs text-muted">{msg}</span>}
+          </>
+        }
+      />
       {st.error && <ErrorBox error={st.error} onRetry={st.reload} />}
       {!st.data && st.loading && <Loading />}
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">

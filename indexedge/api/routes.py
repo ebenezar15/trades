@@ -314,6 +314,15 @@ def strategies(request: Request, underlying: str = "NIFTY"):
                      "reports_job": rt.jobs.get("reports")})
 
 
+@router.post("/strategies/revalidate")
+async def revalidate(request: Request):
+    rt = rt_of(request)
+    if (rt.jobs.get("reports") or {}).get("status") == "running":
+        return {"ok": False, "message": "validation already running"}
+    asyncio.create_task(rt.refresh_reports())
+    return {"ok": True, "message": "validation started"}
+
+
 @router.post("/strategies/{sid}")
 def update_strategy(request: Request, sid: str, body: dict = Body(...)):
     rt = rt_of(request)
@@ -354,15 +363,6 @@ async def backtest(request: Request, body: dict = Body(...)):
                                   params)
     res["trades"] = res.get("trades", [])[-500:]
     return jsonable(res)
-
-
-@router.post("/strategies/revalidate")
-async def revalidate(request: Request):
-    rt = rt_of(request)
-    if (rt.jobs.get("reports") or {}).get("status") == "running":
-        return {"ok": False, "message": "validation already running"}
-    asyncio.create_task(rt.refresh_reports())
-    return {"ok": True, "message": "validation started"}
 
 
 @router.post("/models/retrain")
