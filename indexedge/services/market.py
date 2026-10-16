@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 UNDERLYINGS = ("NIFTY", "BANKNIFTY")
 HISTORY_DAYS = 60
+MIN_SESSIONS = 5
 TickSink = Callable[[Tick], Awaitable[None] | None]
 
 
@@ -86,33 +87,44 @@ class MarketData:
 
     # ------------------------------------------------------------------ history
     async def load_history(self, days: int = HISTORY_DAYS) -> None:
+        """Real history (store + broker backfill) in broker mode; synthetic history in demo mode.
+
+        Demo data is never read from or written to the candle store, so it can't pollute real data.
+        """
+        today = self.clock.today()
         for u in UNDERLYINGS:
             df = empty_candles()
-            try:
-                df = self.store.load(u, "5m")
-            except Exception:  # noqa: BLE001
-                log.warning("candle store read failed for %s", u)
-            if not self.demo and self.data_broker is not None and self.master is not None:
-                try:
-                    from indexedge.data.history import HistoryService
+            if not self.demo:
+                if self.data_broker is not None and self.master is not None:
+                    try:
+                        from indexedge.data.history import HistoryService
 
-                    hs = HistoryService(self.data_broker, self.store, self.master, clock=self.clock)
-                    await hs.backfill(u, "5m", days)
+                        hs = HistoryService(self.data_broker, self.store, self.master, clock=self.clock)
+                        await hs.backfill(u, "5m", days)
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("history backfill failed for %s: %s", u, exc)
+                try:
                     df = self.store.load(u, "5m")
+                except Exception:  # noqa: BLE001
+                    log.warning("candle store read failed for %s", u)
+                if df is not None and len(set(df.index.date)) >= MIN_SESSIONS:
                     self.data_source = "broker"
-                except Exception as exc:  # noqa: BLE001
-                    log.warning("history backfill failed for %s: %s", u, exc)
+                else:
+                    log.warning("only %d stored sessions for %s; using synthetic history",
+                                0 if df is None else len(set(df.index.date)), u)
+                    df = empty_candles()
             if df is None or df.empty:
                 df = self._synthetic_history(u, days)
                 self.data_source = "synthetic"
-            df = df[df.index.date < self.clock.today()] if self.clock.is_market_open() else df
-            self.frames[u] = df.tail(days * 75)
+            self.frames[u] = df.tail(days * 80)
             if not df.empty:
-                last_day = df.index[-1].date()
-                self.prev_close[u] = float(df["close"].iloc[-1])
-                self.ltp.setdefault(u, self.prev_close[u])
-                today = df[df.index.date == last_day]
-                self.day_open.setdefault(u, float(today["open"].iloc[0]))
+                before = df[df.index.date < today]
+                ref = before if not before.empty else df
+                self.prev_close[u] = float(ref["close"].iloc[-1])
+                self.ltp.setdefault(u, float(df["close"].iloc[-1]))
+                todays = df[df.index.date == today]
+                if not todays.empty:
+                    self.day_open.setdefault(u, float(todays["open"].iloc[0]))
         if self.vix is None:
             self.vix = 13.5 if self.demo else None
 
@@ -207,10 +219,11 @@ class MarketData:
         new = pd.DataFrame([row], index=pd.DatetimeIndex([ts]))
         frame = pd.concat([frame[frame.index != ts], new]).sort_index()
         self.frames[key] = frame.tail(HISTORY_DAYS * 80)
-        try:
-            self.store.save(key, "5m", new)
-        except Exception:  # noqa: BLE001
-            log.debug("could not persist bar")
+        if not self.demo:
+            try:
+                self.store.save(key, "5m", new)
+            except Exception:  # noqa: BLE001
+                log.debug("could not persist bar")
         await self.bus.publish(topics.CANDLE, {"underlying": key, "tf": "5m", "candle_ts": ts,
                                                "bar": {"time": int(ts.timestamp()), **row}})
 

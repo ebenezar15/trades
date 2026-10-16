@@ -548,7 +548,9 @@ class Runtime:
 
     def health(self, brief: bool = False) -> dict:
         out = {
-            "ws_status": (self.angel.ws_status if self.angel else {"tick": "demo"}),
+            "ws_status": (str(self.angel.ws_status.get("tick", "unknown")) if self.angel else
+                          ("demo" if self.clock.is_market_open() else "idle")),
+            "ws_detail": (dict(self.angel.ws_status) if self.angel else {}),
             "last_tick_age_s": self.market.feed_age_s(),
             "latency_ms": None,
             "broker_errors": self.broker_errors + (getattr(self.angel, "error_count", 0) if self.angel else 0),
